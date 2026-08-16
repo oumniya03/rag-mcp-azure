@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
-
+from mcp.server.transport_security import TransportSecuritySettings
 from mcp.server.mcpserver import MCPServer
 
 if __package__ in (None, ""):
@@ -30,8 +30,27 @@ def search_documents(query: str) -> str:
     return rag_engine.search(query, k=3)
 
 
-# Create the MCP sub-app first (this lazily initializes the session_manager)
-mcp_app = mcp.streamable_http_app()
+# DNS rebinding protection: allow localhost (dev) and the production Azure host
+AZURE_HOST = "rag-mcp-azure.redsand-f0795bb6.francecentral.azurecontainerapps.io"
+
+security_settings = TransportSecuritySettings(
+    enable_dns_rebinding_protection=True,
+    allowed_hosts=[
+        "127.0.0.1:*",
+        "localhost:*",
+        "[::1]:*",
+        AZURE_HOST,
+    ],
+    allowed_origins=[
+        "http://127.0.0.1:*",
+        "http://localhost:*",
+        "http://[::1]:*",
+        f"https://{AZURE_HOST}",
+    ],
+)
+
+# Create the MCP sub-app once, with security settings (this lazily initializes the session_manager)
+mcp_app = mcp.streamable_http_app(transport_security=security_settings)
 
 
 @asynccontextmanager
@@ -48,12 +67,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Mount the MCP server. mcp_app already exposes its routes under /mcp internally,
+# so we mount it at /mcp-server to avoid a double /mcp/mcp prefix while keeping REST routes at root.
 app.mount("/mcp-server", mcp_app)
+
 
 @app.get("/")
 def root():
     return {"message": "Serveur MCP RAG actif. Le système est en ligne !"}
-
 
 @app.get("/health")
 def health() -> dict:
