@@ -60,6 +60,25 @@ jobs:
           push: true
           tags: ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
+      - name: Register Microsoft.App provider (idempotent)
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az extension add --name containerapp --upgrade --yes
+            az provider show --namespace Microsoft.App --query registrationState -o tsv || true
+            az provider register --namespace Microsoft.App --wait
+
+      - name: Verify Container Apps environment exists
+        uses: azure/cli@v2
+        env:
+          AZURE_RESOURCE_GROUP: ${{ env.AZURE_RESOURCE_GROUP }}
+          AZURE_CONTAINERAPPS_ENVIRONMENT: ${{ env.AZURE_CONTAINERAPPS_ENVIRONMENT }}
+        with:
+          inlineScript: |
+            az containerapp env show \
+              --name "${AZURE_CONTAINERAPPS_ENVIRONMENT}" \
+              --resource-group "${AZURE_RESOURCE_GROUP}"
+
       - name: Deploy to Azure Container Apps
         uses: azure/cli@v2
         env:
@@ -74,27 +93,20 @@ jobs:
           ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
         with:
           inlineScript: |
-            set -e
+            set -x
             IMAGE="${ACR_NAME}.azurecr.io/${IMAGE_NAME}:${GITHUB_SHA}"
-            
             echo "Deploying image: $IMAGE"
-            
-            az extension add --name containerapp --upgrade
-            az provider register --namespace Microsoft.App --wait
-            
-            echo "Checking Container Apps environment: ${AZURE_CONTAINERAPPS_ENVIRONMENT}"
-            az containerapp env show \
-              --name "${AZURE_CONTAINERAPPS_ENVIRONMENT}" \
-              --resource-group "${AZURE_RESOURCE_GROUP}" >/dev/null
-            
+
             if az containerapp show \
-              --name "${AZURE_CONTAINER_APP_NAME}" \
-              --resource-group "${AZURE_RESOURCE_GROUP}" >/dev/null 2>&1; then
+                 --name "${AZURE_CONTAINER_APP_NAME}" \
+                 --resource-group "${AZURE_RESOURCE_GROUP}" \
+                 -o none 2>/dev/null; then
               echo "Container App exists, updating image..."
               az containerapp update \
                 --name "${AZURE_CONTAINER_APP_NAME}" \
                 --resource-group "${AZURE_RESOURCE_GROUP}" \
-                --image "$IMAGE"
+                --image "$IMAGE" \
+                --debug
             else
               echo "Container App does not exist, creating it..."
               az containerapp create \
@@ -109,5 +121,6 @@ jobs:
                 --registry-username "${ACR_USERNAME}" \
                 --registry-password "${ACR_PASSWORD}" \
                 --cpu 0.5 \
-                --memory 1.0Gi
+                --memory 1.0Gi \
+                --debug
             fi
