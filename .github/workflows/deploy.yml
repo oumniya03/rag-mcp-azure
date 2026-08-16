@@ -60,13 +60,11 @@ jobs:
           push: true
           tags: ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-      - name: Register Microsoft.App provider (idempotent)
+      - name: Add Container App extension
         uses: azure/cli@v2
         with:
           inlineScript: |
             az extension add --name containerapp --upgrade --yes
-            az provider show --namespace Microsoft.App --query registrationState -o tsv || true
-            az provider register --namespace Microsoft.App --wait
 
       - name: Verify Container Apps environment exists
         uses: azure/cli@v2
