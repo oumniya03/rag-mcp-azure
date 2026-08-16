@@ -92,7 +92,6 @@ jobs:
             az containerapp create \
               --name "${{ env.AZURE_CONTAINER_APP_NAME }}" \
               --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
-              --location "${{ env.AZURE_LOCATION }}" \
               --environment "${{ env.AZURE_CONTAINERAPPS_ENVIRONMENT }}" \
               --image "$IMAGE" \
               --target-port 8000 \
