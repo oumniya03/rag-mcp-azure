@@ -1,6 +1,6 @@
 import os
 import sys
-
+from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
@@ -30,12 +30,25 @@ def search_documents(query: str) -> str:
     return rag_engine.search(query, k=3)
 
 
+# Create the MCP sub-app first (this lazily initializes the session_manager)
+mcp_app = mcp.streamable_http_app()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # The MCP session manager needs an active task group before it can handle requests
+    async with mcp.session_manager.run():
+        yield
+
+
 app = FastAPI(
     title="RAG MCP Azure",
     description="FastAPI exposing a lightweight RAG search engine and MCP-compatible tool.",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
+app.mount("/mcp-server", mcp_app)
 
 @app.get("/")
 def root():
