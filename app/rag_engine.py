@@ -1,4 +1,5 @@
 import os
+import tempfile
 from io import BytesIO
 from pathlib import Path
 
@@ -27,7 +28,7 @@ class SimpleRAGEngine:
 
     def _load_documents_from_blob(self) -> list:
         """Load all PDFs from Azure Blob Storage."""
-        print(f"Chargement des PDF depuis Azure Blob Storage ({BLOB_CONTAINER_URL})...")
+        print("Chargement des PDF depuis Azure Blob Storage...")
         try:
             blob_service_client = BlobServiceClient.from_connection_string(BLOB_CONTAINER_URL)
             container_client = blob_service_client.get_container_client(container="documents")
@@ -38,12 +39,23 @@ class SimpleRAGEngine:
                     print(f"  Téléchargement: {blob.name}")
                     blob_client = container_client.get_blob_client(blob.name)
                     blob_data = blob_client.download_blob().readall()
+
+                    tmp_path = None
                     try:
-                        pdf_loader = PyPDFLoader(BytesIO(blob_data))
+                        # PyPDFLoader a besoin d'un vrai chemin de fichier, pas d'un BytesIO
+                        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_file:
+                            tmp_file.write(blob_data)
+                            tmp_path = tmp_file.name
+
+                        pdf_loader = PyPDFLoader(tmp_path)
                         docs = pdf_loader.load()
                         documents.extend(docs)
                     except Exception as e:
                         print(f"  Erreur lors du chargement de {blob.name}: {e}")
+                    finally:
+                        if tmp_path and os.path.exists(tmp_path):
+                            os.unlink(tmp_path)
+
             return documents
         except Exception as exc:
             print(f"Warning: Impossible de charger depuis Blob Storage: {exc}")
@@ -90,11 +102,16 @@ class SimpleRAGEngine:
 
     def add_documents_from_bytes(self, pdf_bytes: bytes, source_name: str = "uploaded") -> str:
         """Add documents from a PDF byte stream to the existing vector store (ephemeral)."""
+        tmp_path = None
         try:
             self._load_embeddings()
 
-            # Load PDF from bytes
-            pdf_loader = PyPDFLoader(BytesIO(pdf_bytes))
+            # PyPDFLoader a besoin d'un vrai chemin de fichier, pas d'un BytesIO
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_file:
+                tmp_file.write(pdf_bytes)
+                tmp_path = tmp_file.name
+
+            pdf_loader = PyPDFLoader(tmp_path)
             documents = pdf_loader.load()
 
             if not documents:
@@ -116,6 +133,9 @@ class SimpleRAGEngine:
             return f"Succès: {len(chunks)} chunks ajoutés à l'index."
         except Exception as exc:
             return f"Erreur lors du traitement du PDF: {str(exc)}"
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                os.unlink(tmp_path)
 
     def ingest(self) -> str:
         """Refresh the in-memory index from Blob Storage or local files."""
