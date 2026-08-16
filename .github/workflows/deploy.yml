@@ -66,23 +66,27 @@ jobs:
             az extension add --name containerapp --upgrade
             az provider register --namespace Microsoft.App --wait
 
-            az acr login --name ${{ env.ACR_NAME }}
-
-            az containerapp create \
+            if az containerapp show \
               --name ${{ env.AZURE_CONTAINER_APP_NAME }} \
-              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-              --location ${{ env.AZURE_LOCATION }} \
-              --environment ${{ secrets.AZURE_CONTAINERAPPS_ENVIRONMENT }} \
-              --image ${{ env.ACR_NAME }}.azurecr.io/rag-mcp-azure:${{ github.sha }} \
-              --target-port 8000 \
-              --ingress external \
-              --registry-server ${{ env.ACR_NAME }}.azurecr.io \
-              --registry-username ${{ secrets.ACR_USERNAME }} \
-              --registry-password ${{ secrets.ACR_PASSWORD }} \
-              --cpu 0.5 \
-              --memory 1.0Gi
-
-            az containerapp update \
-              --name ${{ env.AZURE_CONTAINER_APP_NAME }} \
-              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-              --image ${{ env.ACR_NAME }}.azurecr.io/rag-mcp-azure:${{ github.sha }}
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} >/dev/null 2>&1; then
+              echo "Container App exists, updating image..."
+              az containerapp update \
+                --name ${{ env.AZURE_CONTAINER_APP_NAME }} \
+                --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                --image ${{ env.ACR_NAME }}.azurecr.io/rag-mcp-azure:${{ github.sha }}
+            else
+              echo "Container App does not exist, creating it..."
+              az containerapp create \
+                --name ${{ env.AZURE_CONTAINER_APP_NAME }} \
+                --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                --location ${{ env.AZURE_LOCATION }} \
+                --environment ${{ secrets.AZURE_CONTAINERAPPS_ENVIRONMENT }} \
+                --image ${{ env.ACR_NAME }}.azurecr.io/rag-mcp-azure:${{ github.sha }} \
+                --target-port 8000 \
+                --ingress external \
+                --registry-server ${{ env.ACR_NAME }}.azurecr.io \
+                --registry-username ${{ secrets.ACR_USERNAME }} \
+                --registry-password ${{ secrets.ACR_PASSWORD }} \
+                --cpu 0.5 \
+                --memory 1.0Gi
+            fi
