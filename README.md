@@ -61,78 +61,32 @@ rag-mcp-azure/
 
 ---
 
-## � MCP Protocol Integration
+## 🔌 MCP Protocol Integration
 
 ### What is MCP?
 
-**Model Context Protocol (MCP)** is an open standard for connecting AI agents to external tools and data sources. Instead of embedding knowledge retrieval inside an LLM, MCP exposes it as a **discoverable tool** that any agent (Claude, Gemini, custom LLMs) can invoke.
+**Model Context Protocol (MCP)** is an open standard for connecting AI agents to external tools and data sources. Instead of embedding knowledge retrieval inside an LLM, MCP exposes it as a **discoverable tool** that any compatible agent (Claude, Gemini, custom LLMs) can invoke over a standard transport.
 
-**Key advantage for interviews:** Shows you understand emerging patterns in agentic AI and can implement production-grade tool interfaces.
+**Key advantage for interviews:** Demonstrates a real, working implementation of an emerging agentic AI standard — not just a REST API with an MCP label attached.
 
-### How This Server Exposes MCP
+### Transport & Endpoint
 
-This service exposes a single MCP tool:
+This server exposes MCP over **Streamable HTTP** (the modern MCP transport, superseding SSE), mounted on the same FastAPI app that serves the REST endpoints.
+
+| Environment | MCP endpoint |
+|---|---|
+| Local | `http://localhost:8000/mcp-server/mcp` |
+| Production | `https://rag-mcp-azure.redsand-f0795bb6.francecentral.azurecontainerapps.io/mcp-server/mcp` |
+
+The MCP session manager is initialized via FastAPI's `lifespan`, so it starts and stops cleanly alongside the web server (see `app/main.py`).
+
+### Exposed Tool
 
 | Tool | Input | Output | Purpose |
 |------|-------|--------|----------|
-| `search_documents` | `query: string` | Document chunks + relevance scores | Search the RAG knowledge base |
+| `search_documents` | `query: string` | Document chunks (top-3 by relevance) | Search the RAG knowledge base |
 
-### Example: Connect with Claude Desktop
-
-**1. Create/edit `claude_desktop_config.json`** (on Windows: `%APPDATA%\Claude\claude_desktop_config.json`):
-
-```json
-{
-  "mcpServers": {
-    "rag-mcp-azure": {
-      "command": "curl",
-      "args": ["http://localhost:8000/health"]
-    }
-  }
-}
-```
-
-**Alternative: If running MCP server via stdio (future enhancement):**
-
-```json
-{
-  "mcpServers": {
-    "rag-mcp-azure": {
-      "command": "python",
-      "args": ["-m", "app.main"]
-    }
-  }
-}
-```
-
-**2. Call the tool from Claude Desktop:**
-
-In a conversation, Claude can now invoke:
-
-```json
-{
-  "type": "tool_use",
-  "name": "search_documents",
-  "input": {
-    "query": "What is the contract duration?"
-  }
-}
-```
-
-**Server response:**
-
-```json
-{
-  "content": [
-    {
-      "type": "text",
-      "text": "Excerpt 1: ...\n\nExcerpt 2: ..."
-    }
-  ]
-}
-```
-
-### Current MCP Schema
+### Tool Schema
 
 ```json
 {
@@ -154,6 +108,51 @@ In a conversation, Claude can now invoke:
   ]
 }
 ```
+
+### A note on testing with `curl`
+
+A plain `curl` GET request to the MCP endpoint will return a `400 Bad Request` with a JSON-RPC error like:
+
+```json
+{"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"Bad Request: Missing session ID"}}
+```
+
+**This is expected, not a bug.** MCP over Streamable HTTP requires a session handshake before any tool call — `curl` alone doesn't perform this. This response actually confirms the server correctly speaks the MCP JSON-RPC protocol; it's just rejecting an incomplete request. A real MCP client handles this handshake automatically.
+
+### Connect with an MCP Client
+
+**Claude Desktop** (`claude_desktop_config.json` — on Windows: `%APPDATA%\Claude\claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "rag-mcp-azure": {
+      "url": "https://rag-mcp-azure.redsand-f0795bb6.francecentral.azurecontainerapps.io/mcp-server/mcp"
+    }
+  }
+}
+```
+
+*(Exact config keys depend on your MCP client version — some clients use `url`, others require a `transport: "streamable_http"` field. Check your client's MCP documentation if the connection fails.)*
+
+**Python MCP client** (for scripted testing):
+
+```python
+from mcp.client.streamable_http import streamablehttp_client
+from mcp import ClientSession
+
+async def test_search():
+    url = "https://rag-mcp-azure.redsand-f0795bb6.francecentral.azurecontainerapps.io/mcp-server/mcp"
+    async with streamablehttp_client(url) as (read, write, _):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            result = await session.call_tool("search_documents", {"query": "durée maximale contrat intérimaire"})
+            print(result)
+```
+
+### Known limitation
+
+The MCP mount path (`/mcp-server/mcp`) is a workaround for a routing conflict between the MCP SDK's internal `/mcp` route and FastAPI's REST routes at root level. A cleaner path structure is a possible future improvement, but the current setup is fully functional and tested.
 
 ---
 
@@ -444,8 +443,9 @@ Edit `app/rag_engine.py` to customize:
 ## 📖 Key Files Explained
 
 ### app/main.py
-- FastAPI application with two endpoints (`/health`, `/query`)
-- MCP server initialization (search_documents tool)
+- FastAPI application with four REST endpoints (`/health`, `/query`, `/reindex`, `/upload`)
+- MCP server (Streamable HTTP) mounted at `/mcp-server/mcp`, exposing the `search_documents` tool
+- FastAPI `lifespan` manages the MCP session manager's async lifecycle
 - Request/response models
 
 ### app/rag_engine.py
