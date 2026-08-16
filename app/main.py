@@ -17,22 +17,16 @@ else:
 mcp = MCPServer("rag-agent-server")
 
 
-@mcp.tool(
-    name="search_documents",
-    description="Search the RAG knowledge base for relevant document chunks matching a query.",
-    inputSchema={
-        "type": "object",
-        "properties": {
-            "query": {
-                "type": "string",
-                "description": "The search query to find relevant document chunks (e.g., 'What is the contract duration?')"
-            }
-        },
-        "required": ["query"]
-    }
-)
+@mcp.tool()
 def search_documents(query: str) -> str:
-    """Return the most relevant document chunks for the incoming question."""
+    """Search the RAG knowledge base for relevant document chunks matching a query.
+    
+    Args:
+        query (str): The search query to find relevant document chunks (e.g., 'What is the contract duration?')
+    
+    Returns:
+        str: The most relevant document chunks from the knowledge base.
+    """
     return rag_engine.search(query, k=3)
 
 
