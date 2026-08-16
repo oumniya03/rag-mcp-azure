@@ -79,46 +79,26 @@ jobs:
 
       - name: Deploy to Azure Container Apps
         uses: azure/cli@v2
-        env:
-          ACR_NAME: ${{ env.ACR_NAME }}
-          IMAGE_NAME: ${{ env.IMAGE_NAME }}
-          GITHUB_SHA: ${{ github.sha }}
-          AZURE_CONTAINER_APP_NAME: ${{ env.AZURE_CONTAINER_APP_NAME }}
-          AZURE_RESOURCE_GROUP: ${{ env.AZURE_RESOURCE_GROUP }}
-          AZURE_CONTAINERAPPS_ENVIRONMENT: ${{ env.AZURE_CONTAINERAPPS_ENVIRONMENT }}
-          AZURE_LOCATION: ${{ env.AZURE_LOCATION }}
-          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
-          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
         with:
           inlineScript: |
             set -x
-            IMAGE="${ACR_NAME}.azurecr.io/${IMAGE_NAME}:${GITHUB_SHA}"
-            echo "Deploying image: $IMAGE"
-
-            if az containerapp show \
-                 --name "${AZURE_CONTAINER_APP_NAME}" \
-                 --resource-group "${AZURE_RESOURCE_GROUP}" \
-                 -o none 2>/dev/null; then
-              echo "Container App exists, updating image..."
-              az containerapp update \
-                --name "${AZURE_CONTAINER_APP_NAME}" \
-                --resource-group "${AZURE_RESOURCE_GROUP}" \
-                --image "$IMAGE" \
-                --debug
-            else
-              echo "Container App does not exist, creating it..."
-              az containerapp create \
-                --name "${AZURE_CONTAINER_APP_NAME}" \
-                --resource-group "${AZURE_RESOURCE_GROUP}" \
-                --location "${AZURE_LOCATION}" \
-                --environment "${AZURE_CONTAINERAPPS_ENVIRONMENT}" \
-                --image "$IMAGE" \
-                --target-port 8000 \
-                --ingress external \
-                --registry-server "${ACR_NAME}.azurecr.io" \
-                --registry-username "${ACR_USERNAME}" \
-                --registry-password "${ACR_PASSWORD}" \
-                --cpu 0.5 \
-                --memory 1.0Gi \
-                --debug
-            fi
+            
+            IMAGE="${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+            echo "Image: $IMAGE"
+            echo "App Name: ${{ env.AZURE_CONTAINER_APP_NAME }}"
+            echo "RG: ${{ env.AZURE_RESOURCE_GROUP }}"
+            echo "Env: ${{ env.AZURE_CONTAINERAPPS_ENVIRONMENT }}"
+            
+            az containerapp create \
+              --name "${{ env.AZURE_CONTAINER_APP_NAME }}" \
+              --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
+              --location "${{ env.AZURE_LOCATION }}" \
+              --environment "${{ env.AZURE_CONTAINERAPPS_ENVIRONMENT }}" \
+              --image "$IMAGE" \
+              --target-port 8000 \
+              --ingress external \
+              --registry-server "${{ env.ACR_NAME }}.azurecr.io" \
+              --registry-username "${{ secrets.ACR_USERNAME }}" \
+              --registry-password "${{ secrets.ACR_PASSWORD }}" \
+              --cpu 0.5 \
+              --memory 1.0Gi
