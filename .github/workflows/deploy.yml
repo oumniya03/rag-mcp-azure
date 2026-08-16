@@ -8,10 +8,12 @@ on:
 env:
   AZURE_CONTAINER_APP_NAME: rag-mcp-azure
   AZURE_RESOURCE_GROUP: rg-rag-mcp-azure
+  AZURE_CONTAINERAPPS_ENVIRONMENT: cae-rag-mcp-azure
   # Match the existing ACA environment location in your subscription.
   # Verified value: France Central
   AZURE_LOCATION: francecentral
   ACR_NAME: ragmcpacr26
+  IMAGE_NAME: rag-mcp-azure
 
 jobs:
   build-and-deploy:
@@ -56,36 +58,44 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ env.ACR_NAME }}.azurecr.io/rag-mcp-azure:${{ github.sha }}
+          tags: ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
       - name: Deploy to Azure Container Apps
         uses: azure/cli@v2
         with:
           inlineScript: |
+            set -e
+            IMAGE="${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+
             az extension add --name containerapp --upgrade
             az provider register --namespace Microsoft.App --wait
 
+            echo "Checking Container Apps environment: ${{ env.AZURE_CONTAINERAPPS_ENVIRONMENT }}"
+            az containerapp env show \
+              --name "${{ env.AZURE_CONTAINERAPPS_ENVIRONMENT }}" \
+              --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" >/dev/null
+
             if az containerapp show \
-              --name ${{ env.AZURE_CONTAINER_APP_NAME }} \
-              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} >/dev/null 2>&1; then
+              --name "${{ env.AZURE_CONTAINER_APP_NAME }}" \
+              --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" >/dev/null 2>&1; then
               echo "Container App exists, updating image..."
               az containerapp update \
-                --name ${{ env.AZURE_CONTAINER_APP_NAME }} \
-                --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-                --image ${{ env.ACR_NAME }}.azurecr.io/rag-mcp-azure:${{ github.sha }}
+                --name "${{ env.AZURE_CONTAINER_APP_NAME }}" \
+                --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
+                --image "$IMAGE"
             else
               echo "Container App does not exist, creating it..."
               az containerapp create \
-                --name ${{ env.AZURE_CONTAINER_APP_NAME }} \
-                --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-                --location ${{ env.AZURE_LOCATION }} \
-                --environment ${{ secrets.AZURE_CONTAINERAPPS_ENVIRONMENT }} \
-                --image ${{ env.ACR_NAME }}.azurecr.io/rag-mcp-azure:${{ github.sha }} \
+                --name "${{ env.AZURE_CONTAINER_APP_NAME }}" \
+                --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
+                --location "${{ env.AZURE_LOCATION }}" \
+                --environment "${{ env.AZURE_CONTAINERAPPS_ENVIRONMENT }}" \
+                --image "$IMAGE" \
                 --target-port 8000 \
                 --ingress external \
-                --registry-server ${{ env.ACR_NAME }}.azurecr.io \
-                --registry-username ${{ secrets.ACR_USERNAME }} \
-                --registry-password ${{ secrets.ACR_PASSWORD }} \
+                --registry-server "${{ env.ACR_NAME }}.azurecr.io" \
+                --registry-username "${{ secrets.ACR_USERNAME }}" \
+                --registry-password "${{ secrets.ACR_PASSWORD }}" \
                 --cpu 0.5 \
                 --memory 1.0Gi
             fi
