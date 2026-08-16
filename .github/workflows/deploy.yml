@@ -95,25 +95,53 @@ jobs:
 
       - name: Deploy to Azure Container Apps
         uses: azure/cli@v2
+        env:
+          BLOB_CONNECTION_STRING: ${{ secrets.BLOB_CONNECTION_STRING }}
         with:
           inlineScript: |
             set -x
-            
+
             IMAGE="${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}"
             echo "Image: $IMAGE"
             echo "App Name: ${{ env.AZURE_CONTAINER_APP_NAME }}"
             echo "RG: ${{ env.AZURE_RESOURCE_GROUP }}"
             echo "Env: ${{ env.AZURE_CONTAINERAPPS_ENVIRONMENT }}"
-            
-            az containerapp create \
-              --name "${{ env.AZURE_CONTAINER_APP_NAME }}" \
-              --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
-              --environment "${{ env.AZURE_CONTAINERAPPS_ENVIRONMENT }}" \
-              --image "$IMAGE" \
-              --target-port 8000 \
-              --ingress external \
-              --registry-server "${{ env.ACR_NAME }}.azurecr.io" \
-              --registry-username "${{ secrets.ACR_USERNAME }}" \
-              --registry-password "${{ secrets.ACR_PASSWORD }}" \
-              --cpu 0.5 \
-              --memory 1.0Gi
+
+            if az containerapp show \
+                 --name "${{ env.AZURE_CONTAINER_APP_NAME }}" \
+                 --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
+                 -o none 2>/dev/null; then
+
+              echo "Container App exists, updating..."
+
+              az containerapp secret set \
+                --name "${{ env.AZURE_CONTAINER_APP_NAME }}" \
+                --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
+                --secrets "blob-connection-string=${BLOB_CONNECTION_STRING}"
+
+              az containerapp update \
+                --name "${{ env.AZURE_CONTAINER_APP_NAME }}" \
+                --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
+                --image "$IMAGE" \
+                --set-env-vars "BLOB_CONTAINER_URL=secretref:blob-connection-string"
+
+            else
+
+              echo "Container App does not exist, creating..."
+
+              az containerapp create \
+                --name "${{ env.AZURE_CONTAINER_APP_NAME }}" \
+                --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
+                --environment "${{ env.AZURE_CONTAINERAPPS_ENVIRONMENT }}" \
+                --image "$IMAGE" \
+                --target-port 8000 \
+                --ingress external \
+                --registry-server "${{ env.ACR_NAME }}.azurecr.io" \
+                --registry-username "${{ secrets.ACR_USERNAME }}" \
+                --registry-password "${{ secrets.ACR_PASSWORD }}" \
+                --secrets "blob-connection-string=${BLOB_CONNECTION_STRING}" \
+                --env-vars "BLOB_CONTAINER_URL=secretref:blob-connection-string" \
+                --cpu 0.5 \
+                --memory 1.0Gi
+
+            fi
