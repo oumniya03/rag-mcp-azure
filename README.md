@@ -61,7 +61,103 @@ rag-mcp-azure/
 
 ---
 
-## 🚀 Quick Start
+## � MCP Protocol Integration
+
+### What is MCP?
+
+**Model Context Protocol (MCP)** is an open standard for connecting AI agents to external tools and data sources. Instead of embedding knowledge retrieval inside an LLM, MCP exposes it as a **discoverable tool** that any agent (Claude, Gemini, custom LLMs) can invoke.
+
+**Key advantage for interviews:** Shows you understand emerging patterns in agentic AI and can implement production-grade tool interfaces.
+
+### How This Server Exposes MCP
+
+This service exposes a single MCP tool:
+
+| Tool | Input | Output | Purpose |
+|------|-------|--------|----------|
+| `search_documents` | `query: string` | Document chunks + relevance scores | Search the RAG knowledge base |
+
+### Example: Connect with Claude Desktop
+
+**1. Create/edit `claude_desktop_config.json`** (on Windows: `%APPDATA%\Claude\claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "rag-mcp-azure": {
+      "command": "curl",
+      "args": ["http://localhost:8000/health"]
+    }
+  }
+}
+```
+
+**Alternative: If running MCP server via stdio (future enhancement):**
+
+```json
+{
+  "mcpServers": {
+    "rag-mcp-azure": {
+      "command": "python",
+      "args": ["-m", "app.main"]
+    }
+  }
+}
+```
+
+**2. Call the tool from Claude Desktop:**
+
+In a conversation, Claude can now invoke:
+
+```json
+{
+  "type": "tool_use",
+  "name": "search_documents",
+  "input": {
+    "query": "What is the contract duration?"
+  }
+}
+```
+
+**Server response:**
+
+```json
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "Excerpt 1: ...\n\nExcerpt 2: ..."
+    }
+  ]
+}
+```
+
+### Current MCP Schema
+
+```json
+{
+  "tools": [
+    {
+      "name": "search_documents",
+      "description": "Search the RAG knowledge base for relevant document chunks matching a query.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The search query to find relevant document chunks (e.g., 'What is the contract duration?')"
+          }
+        },
+        "required": ["query"]
+      }
+    }
+  ]
+}
+```
+
+---
+
+## �🚀 Quick Start
 
 ### Local Development
 
