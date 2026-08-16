@@ -226,6 +226,89 @@ docker run --rm -p 8000:8000 rag-mcp-azure:latest
 
 ---
 
+## 📦 Azure Blob Storage Integration
+
+This service can ingest documents from **Azure Blob Storage** instead of (or in addition to) local files. This is the recommended approach for production deployments.
+
+### Architecture
+
+```
+┌──────────────────────────────────────┐
+│   Azure Blob Storage (documents/)    │
+│   - sample-contract.pdf              │
+│   - guide.pdf                        │
+└──────────────────┬───────────────────┘
+                   │
+                   ▼
+        ┌──────────────────────┐
+        │  RAG Engine          │
+        │ (rag_engine.py)      │
+        │ - Load from Blob     │
+        │ - Chunk & embed      │
+        └──────────────────────┘
+                   │
+                   ▼
+        ┌──────────────────────┐
+        │  FAISS Index         │
+        │  (in-memory)         │
+        └──────────────────────┘
+                   │
+                   ▼
+        ┌──────────────────────┐
+        │  FastAPI Endpoints   │
+        │  /query, /reindex    │
+        └──────────────────────┘
+```
+
+### Setup Instructions
+
+**1. Create a Blob Storage account (Azure Portal or CLI):**
+
+```powershell
+# Create storage account (replace with your values)
+az storage account create --name ragstgaccount --resource-group rg-rag-mcp-azure --location francecentral
+
+# Create a container named "documents"
+az storage container create --name documents --account-name ragstgaccount
+
+# Get connection string
+az storage account show-connection-string --name ragstgaccount --resource-group rg-rag-mcp-azure
+```
+
+**2. Upload PDF files to the container:**
+
+```powershell
+az storage blob upload --account-name ragstgaccount --container-name documents --file your-document.pdf --name your-document.pdf
+```
+
+**3. Set environment variable on Azure Container Apps:**
+
+```powershell
+# Get the connection string
+$connString = az storage account show-connection-string --name ragstgaccount --resource-group rg-rag-mcp-azure --query connectionString -o tsv
+
+# Update Container App with the environment variable
+az containerapp update `
+  --name rag-mcp-azure `
+  --resource-group rg-rag-mcp-azure `
+  --set-env-vars BLOB_CONTAINER_URL=$connString
+```
+
+**4. Trigger reindexing:**
+
+```bash
+curl -X POST http://localhost:8000/reindex
+# Response: {"status": "Réindexation réussie."}
+```
+
+### How it Works
+
+- **On startup:** If `BLOB_CONTAINER_URL` environment variable is set, the service will download all PDFs from Blob Storage. Otherwise, it falls back to local `app/data/` folder.
+- **On `/reindex` call:** The service re-downloads all documents and rebuilds the FAISS index.
+- **Ephemeral uploads:** Documents uploaded via `/upload` are added to the in-memory index but are **not** persisted to Blob Storage. They will be lost on service restart.
+
+---
+
 ## ☁️ Azure Deployment
 
 ### Current Production Environment
@@ -304,12 +387,49 @@ Retrieve document context for a given query.
 }
 ```
 
+### POST /reindex
+Refresh the in-memory FAISS index from Blob Storage (if configured) or local files.
+
+**Request:** (no body required)
+```bash
+curl -X POST http://localhost:8000/reindex
+```
+
+**Response:**
+```json
+{
+  "status": "Réindexation réussie."
+}
+```
+
+**Use case:** After uploading new PDFs to Blob Storage, call this endpoint to update the search index without restarting the service.
+
+### POST /upload
+Upload a PDF document and add it to the RAG index (ephemeral, session-scoped).
+
+**Request:**
+```bash
+curl -X POST http://localhost:8000/upload \
+  -F "file=@your-document.pdf"
+```
+
+**Response:**
+```json
+{
+  "status": "Succès: 42 chunks ajoutés à l'index.",
+  "success": true,
+  "filename": "your-document.pdf"
+}
+```
+
+**Important:** Uploaded documents are added only to the in-memory FAISS index and will be **lost when the service restarts**. To persist documents, upload them directly to Blob Storage instead.
+
 ---
 
 ## 🔧 Configuration
 
-### Environment variables (not required for local dev)
-- None currently. All config is code-based in `main.py` and `rag_engine.py`.
+### Environment variables
+- `BLOB_CONTAINER_URL` (optional): Azure Blob Storage connection string. If set, documents will be loaded from Blob Storage instead of local files. Example: `DefaultEndpointsProtocol=https;AccountName=...`
 
 ### Local tweaking
 Edit `app/rag_engine.py` to customize:

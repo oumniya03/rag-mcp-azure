@@ -2,7 +2,7 @@ import os
 import sys
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
 
 from mcp.server.mcpserver import MCPServer
@@ -65,6 +65,27 @@ def query_rag(request: QueryRequest):
         "query": request.query,
         "context_extrait": context,
     }
+
+
+@app.post("/reindex")
+def reindex():
+    """Refresh the in-memory FAISS index from Blob Storage or local files."""
+    message = rag_engine.ingest()
+    return {"status": message}
+
+
+@app.post("/upload")
+async def upload_pdf(file: UploadFile = File(...)):
+    """Upload a PDF document and add it to the RAG index (ephemeral, session-scoped)."""
+    if not file.filename.endswith(".pdf"):
+        return {"status": "Erreur: Veuillez charger un fichier PDF.", "success": False}
+
+    try:
+        pdf_bytes = await file.read()
+        message = rag_engine.add_documents_from_bytes(pdf_bytes, source_name=file.filename)
+        return {"status": message, "success": True, "filename": file.filename}
+    except Exception as e:
+        return {"status": f"Erreur lors de l'upload: {str(e)}", "success": False}
 
 
 if __name__ == "__main__":

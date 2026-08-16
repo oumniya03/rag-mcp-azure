@@ -1,12 +1,15 @@
 import os
+from io import BytesIO
 from pathlib import Path
 
-from langchain_community.document_loaders import PyPDFDirectoryLoader
+from azure.storage.blob import BlobServiceClient
+from langchain_community.document_loaders import PyPDFDirectoryLoader, PyPDFLoader
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
+BLOB_CONTAINER_URL = os.getenv("BLOB_CONTAINER_URL")
 
 
 class SimpleRAGEngine:
@@ -14,39 +17,118 @@ class SimpleRAGEngine:
         self.data_dir = Path(data_dir) if data_dir is not None else DATA_DIR
         self.vector_store = None
         self.embeddings = None
+        self.text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
         self.initialize_store()
 
-    def initialize_store(self):
-        print(f"Chargement des PDF depuis {self.data_dir}...")
-        if not self.data_dir.exists() or not any(self.data_dir.iterdir()):
-            print("Attention : Aucun PDF trouvé dans app/data/. Indexation ignorée.")
-            return
-
-        try:
-            # lightweight embedding model selected to fit in 8 GB RAM local environment
+    def _load_embeddings(self):
+        """Load lightweight embedding model."""
+        if not self.embeddings:
             self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
+    def _load_documents_from_blob(self) -> list:
+        """Load all PDFs from Azure Blob Storage."""
+        print(f"Chargement des PDF depuis Azure Blob Storage ({BLOB_CONTAINER_URL})...")
+        try:
+            blob_service_client = BlobServiceClient.from_connection_string(BLOB_CONTAINER_URL)
+            container_client = blob_service_client.get_container_client(container="documents")
+            documents = []
+
+            for blob in container_client.list_blobs():
+                if blob.name.endswith(".pdf"):
+                    print(f"  Téléchargement: {blob.name}")
+                    blob_client = container_client.get_blob_client(blob.name)
+                    blob_data = blob_client.download_blob().readall()
+                    try:
+                        pdf_loader = PyPDFLoader(BytesIO(blob_data))
+                        docs = pdf_loader.load()
+                        documents.extend(docs)
+                    except Exception as e:
+                        print(f"  Erreur lors du chargement de {blob.name}: {e}")
+            return documents
+        except Exception as exc:
+            print(f"Warning: Impossible de charger depuis Blob Storage: {exc}")
+            return []
+
+    def _load_documents_from_local(self) -> list:
+        """Load all PDFs from local data directory."""
+        print(f"Chargement des PDF depuis {self.data_dir}...")
+        if not self.data_dir.exists() or not any(self.data_dir.glob("*.pdf")):
+            print("Attention : Aucun PDF trouvé localement. Indexation ignorée.")
+            return []
+
+        try:
             loader = PyPDFDirectoryLoader(str(self.data_dir))
             documents = loader.load()
-            text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-            chunks = text_splitter.split_documents(documents)
+            return documents
+        except Exception as exc:
+            print(f"Warning: impossible de charger les PDF locaux: {exc}")
+            return []
 
+    def initialize_store(self):
+        """Initialize vector store from Blob Storage or local files."""
+        try:
+            self._load_embeddings()
+
+            # Try Blob Storage first, fall back to local
+            if BLOB_CONTAINER_URL:
+                documents = self._load_documents_from_blob()
+            else:
+                documents = self._load_documents_from_local()
+
+            if not documents:
+                print("Aucun document à indexer.")
+                self.vector_store = None
+                return
+
+            chunks = self.text_splitter.split_documents(documents)
             print(f"Indexation de {len(chunks)} chunks en cours...")
             self.vector_store = FAISS.from_documents(chunks, self.embeddings)
             print("Base vectorielle prête !")
         except Exception as exc:
             print(f"Warning: impossible d'initialiser le moteur RAG: {exc}")
             self.vector_store = None
-            self.embeddings = None
 
-    def ingest(self):
-        """Refresh the in-memory index from the configured data folder."""
+    def add_documents_from_bytes(self, pdf_bytes: bytes, source_name: str = "uploaded") -> str:
+        """Add documents from a PDF byte stream to the existing vector store (ephemeral)."""
+        try:
+            self._load_embeddings()
+
+            # Load PDF from bytes
+            pdf_loader = PyPDFLoader(BytesIO(pdf_bytes))
+            documents = pdf_loader.load()
+
+            if not documents:
+                return "Erreur: Aucun contenu n'a pu être extrait du PDF."
+
+            # Mark documents with source
+            for doc in documents:
+                doc.metadata["source"] = source_name
+
+            chunks = self.text_splitter.split_documents(documents)
+            print(f"Ajout de {len(chunks)} chunks depuis {source_name}...")
+
+            # Add to existing store or create new one
+            if self.vector_store:
+                self.vector_store.add_documents(chunks)
+            else:
+                self.vector_store = FAISS.from_documents(chunks, self.embeddings)
+
+            return f"Succès: {len(chunks)} chunks ajoutés à l'index."
+        except Exception as exc:
+            return f"Erreur lors du traitement du PDF: {str(exc)}"
+
+    def ingest(self) -> str:
+        """Refresh the in-memory index from Blob Storage or local files."""
         self.initialize_store()
+        if self.vector_store:
+            return "Réindexation réussie."
+        else:
+            return "Réindexation échouée: aucun document disponible."
 
     def search(self, query: str, k: int = 3) -> str:
         """Return the most relevant context chunks without generating final prose."""
         if not self.vector_store:
-            return "Erreur : La base de connaissances est vide. Ajoutez des PDF dans app/data/."
+            return "Erreur : La base de connaissances est vide. Ajoutez des PDF via /upload ou configurez BLOB_CONTAINER_URL."
 
         results = self.vector_store.similarity_search(query, k=k)
         context = "\n\n".join(
