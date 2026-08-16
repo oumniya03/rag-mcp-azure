@@ -8,10 +8,9 @@ on:
 env:
   AZURE_CONTAINER_APP_NAME: rag-mcp-azure
   AZURE_RESOURCE_GROUP: rg-rag-mcp-azure
-  # Use a supported Azure region for the current subscription.
-  # If Azure rejects this value, run: az account list-locations -o table
-  # and replace it with a region that is allowed for your subscription.
-  AZURE_LOCATION: northeurope
+  # Match the existing ACA environment location in your subscription.
+  # Verified value: France Central
+  AZURE_LOCATION: francecentral
   ACR_NAME: ragmcpacr26
 
 jobs:
