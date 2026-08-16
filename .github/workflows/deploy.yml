@@ -12,7 +12,7 @@ env:
   # If Azure rejects this value, run: az account list-locations -o table
   # and replace it with a region that is allowed for your subscription.
   AZURE_LOCATION: northeurope
-  ACR_NAME: ragmcpazureacr
+  ACR_NAME: ragmcpacr26
 
 jobs:
   build-and-deploy:
