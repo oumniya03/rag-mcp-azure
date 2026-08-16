@@ -563,7 +563,73 @@ az containerapp env list -o table
 
 ---
 
-## 🛣️ Roadmap
+## � Security & Future Improvements
+
+### Current Security Architecture
+
+This production deployment uses industry-standard practices:
+
+- ✅ **Secrets Management:** GitHub repository secrets for Azure credentials and ACR credentials
+- ✅ **Network Isolation:** Azure Container Apps runs in a managed environment with ingress control
+- ✅ **Service Principal:** Deployment uses an Azure AD service principal (not admin account)
+- ✅ **API Validation:** FastAPI validates all request schemas with Pydantic
+
+### Known Limitations & Planned Improvements
+
+#### 1. ACR Authentication (Priority: Medium)
+
+**Current approach:** Admin username/password stored in GitHub Secrets
+
+```yaml
+# Current (less secure, but stable)
+username: ${{ secrets.ACR_USERNAME }}
+password: ${{ secrets.ACR_PASSWORD }}
+```
+
+**Limitation:** Credentials are long-lived and stored as plaintext secrets.
+
+**Recommended improvement:** **OIDC Federated Authentication**
+
+Migrate to short-lived credential exchange between GitHub Actions and Azure using OpenID Connect:
+
+```yaml
+# Future (more secure)
+- uses: azure/login@v2
+  with:
+    client-id: ${{ secrets.AZURE_CLIENT_ID }}
+    tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+    subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+```
+
+**Benefits:**
+- No stored credentials to rotate
+- Automatic token expiration (short-lived)
+- Audit trail via Azure AD
+- GitHub Actions natively supported
+
+**How to implement (future):**
+1. Create an Azure Entra ID application
+2. Configure federated credential for GitHub repo
+3. Store client ID, tenant ID, and subscription ID as secrets
+4. Update `.github/workflows/deploy.yml` to use `azure/login@v2` with OIDC
+5. Remove `AZURE_CREDENTIALS` secret
+
+**Resources:**
+- [GitHub OIDC in Azure](https://learn.microsoft.com/en-us/azure/active-directory/workload-identities/workload-identity-federation)
+- [Azure/login@v2 OIDC support](https://github.com/azure/login#github-oidc-token-generation)
+
+#### 2. Additional Enhancements
+
+- [ ] **Persistent ephemeral uploads:** Optionally persist uploaded PDFs to Blob Storage
+- [ ] **API Authentication:** Add optional API key or Bearer token validation to `/query` and `/upload`
+- [ ] **Rate Limiting:** Implement rate limits to prevent abuse
+- [ ] **Observability:** Add Application Insights for monitoring and diagnostics
+- [ ] **Data Encryption:** Enable encryption for Blob Storage (already encrypted at rest by default)
+- [ ] **Multi-region deployment:** Replicate to multiple Azure regions for HA
+
+---
+
+## �🛣️ Roadmap
 
 - [ ] Add LLM endpoint for final answer synthesis
 - [ ] Support multiple file formats (DOCX, TXT, etc.)

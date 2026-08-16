@@ -1,5 +1,21 @@
 name: Deploy RAG MCP Azure
 
+# This workflow builds and deploys the RAG MCP service to Azure Container Apps.
+# 
+# Security notes:
+# - Uses AZURE_CREDENTIALS (Service Principal) for Azure CLI authentication
+# - Uses ACR_USERNAME/ACR_PASSWORD for Docker registry access (admin account)
+# 
+# Future improvement: Migrate to OIDC federated authentication
+# This would eliminate the need for long-lived secrets:
+#   https://learn.microsoft.com/en-us/azure/active-directory/workload-identities/workload-identity-federation
+# 
+# To implement:
+# 1. Create an Azure Entra ID app with federated credentials for this repo
+# 2. Replace AZURE_CREDENTIALS with OIDC-based authentication
+# 3. Use docker/login-action@v3 with OIDC for ACR authentication
+# 4. Remove ACR admin account credentials
+
 on:
   push:
     branches: [main]
