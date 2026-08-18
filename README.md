@@ -37,7 +37,16 @@ A production-ready **Retrieval-Augmented Generation (RAG)** API deployed on **Az
 | **CI/CD** | GitHub Actions | Automated tests, build, push, and idempotent deploy |
 
 ---
+## 🏛️ Architecture
 
+![RAG MCP Azure Architecture](./docs/rag_mcp_azure_architecture.png)
+
+1. **Blob Storage** — stores the source documents (PDF)
+2. **RAG Engine** — ingestion, chunking, embeddings generation
+3. **FAISS** — in-memory vector store, similarity search
+4. **FastAPI / MCP** — exposes the REST API and the MCP server, both within the same process
+5. The whole pipeline runs inside **a single Azure Container App**, publicly exposed over HTTPS
+---
 ## 🏗️ Project Structure
 
 ```
