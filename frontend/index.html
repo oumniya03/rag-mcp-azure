@@ -3,100 +3,181 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Assistant Médical RAG</title>
+    <title>MedAssist — Assistant Médical IA</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="app">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-left">
-                <h1 class="app-title">Assistant Médical RAG</h1>
-                <span class="app-subtitle">MedQuAD • Azure + OpenRouter</span>
-            </div>
-            <div class="header-right">
-                <button class="icon-btn settings-btn" id="settings-btn" aria-label="Réglages" aria-expanded="false">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                        <circle cx="12" cy="12" r="3"/>
-                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                    </svg>
-                    <span class="status-dot" id="status-dot" aria-hidden="true"></span>
-                </button>
-            </div>
-        </header>
 
-        <!-- Settings Modal Overlay -->
-        <div class="modal-overlay" id="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title" hidden>
-            <div class="modal" id="settings-modal">
-                <div class="modal-header">
-                    <h2 id="modal-title">Clé API OpenRouter</h2>
-                    <button class="icon-btn modal-close" id="modal-close" aria-label="Fermer">
-                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                            <line x1="18" y1="6" x2="6" y2="18"/>
-                            <line x1="6" y1="6" x2="18" y2="18"/>
-                        </svg>
-                    </button>
+    <!-- NAVBAR -->
+    <nav class="navbar">
+        <div class="logo">
+            <strong>MEDASSIST</strong>
+            <span class="badge-triage"><span class="dot-green"></span> 24/7 Live Triage</span>
+        </div>
+            <ul class="nav-links">
+                <li><a href="#features">Fonctionnalités</a></li>
+                <li><a href="#securite">Sécurité</a></li>
+                <li><a href="#faq">FAQ</a></li>
+                <li><a href="mailto:contact@medassist.fr">Contact</a></li>
+            </ul>
+        <div class="nav-actions">
+        </div>
+    </nav>
+
+    <!-- HERO SECTION -->
+    <main class="hero-section">
+
+        <!-- Colonne Gauche : Texte -->
+        <div class="hero-content">
+            <div class="badge-top">
+                <span class="dot-black"></span> DISPONIBLE 24/7 • VALIDATION MÉDICALE
+            </div>
+            <h1>Vos questions de santé, des réponses claires.</h1>
+            <p>MedAssist vous guide à toute heure avec des informations médicales fiables et accessibles. Posez vos questions en toute confiance, sans rendez-vous, sans attente.</p>
+            <div class="hero-buttons">
+                <button class="btn-black btn-large" onclick="document.getElementById('user-input').focus()">Démarrer une consultation ➔</button>
+                <button class="btn-outline btn-large" onclick="document.getElementById('features').scrollIntoView({behavior:'smooth'})"><i data-lucide="activity" style="width:16px;height:16px;"></i> Explorer les fonctionnalités</button>
+            </div>
+            <div class="hero-stats">
+                <div class="stat">
+                    <span class="stat-number">24/7</span>
+                    <span class="stat-label">Disponible à toute heure</span>
                 </div>
-                <div class="modal-body">
-                    <p class="modal-hint">Entrez votre clé API OpenRouter pour activer la génération de réponses. La clé est stockée uniquement dans la session du navigateur (sessionStorage).</p>
-                    <div class="form-group">
-                        <label for="api-key" class="visually-hidden">Clé API OpenRouter</label>
-                        <input type="password" id="api-key" placeholder="sk-or-v1-..." autocomplete="off" aria-describedby="api-key-hint">
-                        <span id="api-key-hint" class="form-hint">Format: sk-or-v1-...</span>
-                    </div>
-                    <div class="modal-status" id="modal-status" aria-live="polite"></div>
-                    <div class="modal-actions">
-                        <button class="btn btn-secondary" id="modal-cancel">Annuler</button>
-                        <button class="btn btn-primary" id="save-api-key">Enregistrer</button>
-                    </div>
+                <div class="stat-divider"></div>
+                <div class="stat">
+                    <span class="stat-number">100%</span>
+                    <span class="stat-label">Confidentiel &amp; sécurisé</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat">
+                    <span class="stat-number">Gratuit</span>
+                    <span class="stat-label">Sans inscription requise</span>
                 </div>
             </div>
         </div>
 
-        <!-- Chat Area -->
-        <main class="chat-area" id="chat-area">
-            <div class="messages" id="messages" role="log" aria-live="polite" aria-label="Conversation">
-                <!-- Welcome state -->
-                <div class="welcome-state" id="welcome-state">
-                    <div class="welcome-content">
-                        <svg class="welcome-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                        </svg>
-                        <h2 class="welcome-title">Bienvenue</h2>
-                        <p class="welcome-text">Posez une question sur la base de connaissances médicale MedQuAD pour commencer.</p>
+        <!-- Colonne Droite : Chat fonctionnel -->
+        <div class="hero-chat">
+            <div class="chat-card">
+
+                <!-- En-tête du chat -->
+                <div class="chat-header">
+                    <div class="chat-title-group">
+                        <div class="bot-avatar-header"><i data-lucide="activity"></i></div>
+                        <div>
+                            <div class="chat-name">MedAssist <span class="tag-doctor">AI Doctor</span></div>
+                            <div class="chat-subtitle">Assistant médical disponible 24h/24</div>
+                        </div>
                     </div>
-                    <p class="disclaimer-inline">Ce projet est une démonstration technique et ne remplace pas un avis médical professionnel.</p>
+                    <div class="chat-live"><span class="dot-green"></span> Live</div>
                 </div>
+
+                <!-- Corps des messages -->
+                <div class="chat-body" id="messages" role="log" aria-live="polite">
+                    <!-- Message de bienvenue -->
+                    <div class="message-row bot-row">
+                        <div class="avatar-small"><i data-lucide="activity"></i></div>
+                        <div class="bubble bot-bubble">
+                            Bonjour, je suis MedAssist, votre assistant médical. Comment puis-je vous aider aujourd'hui ?
+                            <div class="time-stamp">En ligne</div>
+                        </div>
+                    </div>
+
+                    <!-- Suggestions -->
+                    <div class="suggestions-row" id="suggestions-row">
+                        <button class="suggestion-chip">Qu'est-ce que l'hypertension ?</button>
+                        <button class="suggestion-chip">Symptômes du diabète ?</button>
+                        <button class="suggestion-chip">Traitement maladie de Paget ?</button>
+                        <button class="suggestion-chip">Aliments contre la tension ?</button>
+                    </div>
+
+                    <!-- Indicateur de frappe — à l'intérieur du chat-body, caché par défaut -->
+                    <div class="typing-indicator" id="typing-indicator" style="display:none">
+                        <div class="avatar-small"><i data-lucide="activity"></i></div>
+                        <div class="typing-bubble">
+                            <span class="typing-dot"></span>
+                            <span class="typing-dot"></span>
+                            <span class="typing-dot"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Zone de saisie -->
+                <form class="chat-input-area" id="input-form">
+                    <input
+                        type="text"
+                        id="user-input"
+                        placeholder="Décrivez vos symptômes ou posez une question médicale…"
+                        autocomplete="off"
+                        aria-label="Votre question médicale"
+                    >
+                    <button type="submit" class="send-btn" id="send-btn" aria-label="Envoyer"><i data-lucide="send"></i></button>
+                </form>
+
+                <p class="chat-disclaimer">⚠ Ne remplace pas un avis médical professionnel</p>
             </div>
+        </div>
 
-            <!-- Typing indicator (hidden by default) -->
-            <div class="typing-indicator" id="typing-indicator" aria-hidden="true" hidden>
-                <div class="typing-bubble">
-                    <span class="typing-dot"></span>
-                    <span class="typing-dot"></span>
-                    <span class="typing-dot"></span>
-                </div>
+    </main>
+
+    <!-- SECTION FEATURES -->
+    <section id="features" class="features-section">
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon"><i data-lucide="message-square"></i></div>
+                <h3>Réponses claires et rapides</h3>
+                <p>Posez votre question en langage naturel et obtenez une réponse compréhensible en quelques secondes.</p>
             </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i data-lucide="shield-check"></i></div>
+                <h3>Vos données restent privées</h3>
+                <p>Aucune information personnelle n'est conservée. Chaque conversation est entièrement confidentielle.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i data-lucide="check-circle"></i></div>
+                <h3>Informations fiables</h3>
+                <p>Les réponses s'appuient sur des sources médicales validées, pour vous donner des informations sûres.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i data-lucide="clock"></i></div>
+                <h3>Disponible à tout moment</h3>
+                <p>Pas besoin de rendez-vous. Obtenez des informations médicales de base à n'importe quelle heure.</p>
+            </div>
+        </div>
+    </section>
+    <!-- SECTION SÉCURITÉ -->
+    <section id="securite" class="features-section" style="margin-top: 60px;">
+        <h2 style="font-size: 1.5rem; margin-bottom: 24px; text-align: center;">Engagement Sécurité &amp; Confidentialité</h2>
+        <div class="features-grid" style="grid-template-columns: repeat(2, 1fr);">
+            <div class="feature-card">
+                <div class="feature-icon"><i data-lucide="database"></i></div>
+                <h3>Zéro Stockage (Stateless)</h3>
+                <p>Notre infrastructure traite les requêtes en temps réel de manière anonyme. Aucun historique de conversation ni adresse IP n'est conservé.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i data-lucide="lock"></i></div>
+                <h3>Clé API sécurisée côté serveur</h3>
+                <p>Votre clé OpenRouter n'est jamais exposée au navigateur. Elle est stockée comme secret chiffré sur Azure Container Apps.</p>
+            </div>
+        </div>
+    </section>
+    <!-- SECTION FAQ -->
+    <section id="faq" class="features-section" style="margin-top: 60px;">
+        <h2 style="font-size: 1.5rem; margin-bottom: 24px; text-align: center;">Questions Fréquentes</h2>
+        <div style="display: flex; flex-direction: column; gap: 16px; max-width: 800px; margin: 0 auto;">
+            <div class="feature-card" style="padding: 20px;">
+                <h3 style="font-size: 1.1rem; margin-bottom: 8px;">D'où proviennent les informations médicales ?</h3>
+                <p style="font-size: 0.9rem; color: var(--text-light);">L'assistant s'appuie sur la base de données <strong>MedQuAD</strong> (Medical Question Answering Dataset), contenant plus de 16 000 paires de questions/réponses issues des Instituts Nationaux de la Santé (NIH). Les réponses sont extraites via une recherche vectorielle avant d'être synthétisées par l'IA.</p>
+            </div>
+            <div class="feature-card" style="padding: 20px;">
+                <h3 style="font-size: 1.1rem; margin-bottom: 8px;">Est-ce un vrai médecin ?</h3>
+                <p style="font-size: 0.9rem; color: var(--text-light);"><strong>Non.</strong> MedAssist est une démonstration technologique d'architecture RAG (Retrieval-Augmented Generation). Il ne pose pas de diagnostic et ne remplace en aucun cas l'avis d'un professionnel de santé physique.</p>
+            </div>
+        </div>
+    </section>
 
-            <!-- Input Area -->
-            <form class="input-form" id="input-form">
-                <div class="input-wrapper">
-                    <input type="text" id="user-input" placeholder="Posez votre question médicale..." autocomplete="off" aria-label="Votre question" disabled>
-                    <button type="submit" class="icon-btn send-btn" id="send-btn" aria-label="Envoyer" disabled>
-                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                            <line x1="22" y1="2" x2="11" y2="13"/>
-                            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                        </svg>
-                    </button>
-                </div>
-            </form>
-        </main>
-
-        <!-- Persistent disclaimer (mobile fallback) -->
-        <footer class="footer" id="footer">
-            <p class="disclaimer">Ce projet est une démonstration technique et ne remplace pas un avis médical professionnel.</p>
-        </footer>
-    </div>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <script src="app.js"></script>
 </body>
 </html>

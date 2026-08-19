@@ -1,6 +1,7 @@
 import os
 import sys
 from contextlib import asynccontextmanager
+import httpx
 import uvicorn
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -92,6 +93,19 @@ def health() -> dict:
     return {"status": "ok"}
 
 
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_MODEL = "anthropic/claude-haiku-4.5"
+SYSTEM_PROMPT = """Tu es MedAssist, un assistant médical professionnel et empathique. Tu as accès à une base de connaissances médicale validée.
+
+RÈGLES ABSOLUES :
+1. Ne dis JAMAIS "basé sur le contexte fourni", "d'après le texte", ou "selon les documents". Parle directement comme un médecin qui possède lui-même la connaissance.
+2. Utilise UNIQUEMENT les informations fournies dans le contexte caché.
+3. Si la réponse n'est pas dans tes informations, dis simplement : "Je ne dispose pas d'informations médicales validées sur ce sujet précis. Veuillez consulter un médecin."
+4. Ne donne jamais de diagnostic personnel ni de prescription.
+5. Structure tes réponses avec des puces claires et professionnelles."""
+
+
 class QueryRequest(BaseModel):
     query: str
 
@@ -104,6 +118,37 @@ def query_rag(request: QueryRequest):
         "query": request.query,
         "context_extrait": context,
     }
+
+
+@app.post("/chat")
+async def chat(request: QueryRequest):
+    """RAG + LLM synthesis: retrieve context then call OpenRouter server-side."""
+    context = rag_engine.search(request.query, k=3)
+
+    if not OPENROUTER_API_KEY:
+        return {"answer": "Erreur de configuration : clé API OpenRouter manquante sur le serveur."}
+
+    payload = {
+        "model": OPENROUTER_MODEL,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": f"Contexte:\n{context}\n\nQuestion: {request.query}"},
+        ],
+        "temperature": 0.3,
+        "max_tokens": 1000,
+    }
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(
+            OPENROUTER_URL,
+            headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"},
+            json=payload,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    answer = data["choices"][0]["message"]["content"]
+    return {"answer": answer}
 
 
 @app.post("/reindex")
