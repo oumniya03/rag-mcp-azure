@@ -1,8 +1,13 @@
+<img width="907" height="412" alt="image" src="https://github.com/user-attachments/assets/249ac5a9-d5cf-48ac-a83c-40645cce083d" />
+
 # O.M. Health AI — Medical RAG Assistant
 
 A production-ready **AI-powered medical assistant** built on a full-stack RAG (Retrieval-Augmented Generation) architecture. The backend runs on **Azure Container Apps**, the frontend is deployed on **Vercel**. Designed for reliability, security, and a polished end-user experience.
 
-**Live demo:** `https://rag-mcp-azure.redsand-f0795bb6.francecentral.azurecontainerapps.io`
+🌐 **Live Demo (Frontend):** [https://om-health-ai.vercel.app](https://om-health-ai.vercel.app)
+
+⚙️ **Backend API (Azure):** `https://rag-mcp-azure.redsand-f0795bb6.francecentral.azurecontainerapps.io`
+
 
 ---
 
@@ -98,9 +103,6 @@ rag-mcp-azure/
 │   ├── index.html               # Full-page UI: navbar, hero, chat card, features, FAQ
 │   ├── style.css                # Design system: CSS variables, dark mode, responsive
 │   └── app.js                   # Chat logic: POST /chat, Markdown rendering, dark mode toggle
-├── medquad_index/
-│   ├── index.faiss              # Pre-built FAISS index (MedQuAD)
-│   └── index.pkl                # Embedding metadata
 ├── scripts/
 │   ├── build_index_offline.py   # Build FAISS index from medquad.csv locally
 │   ├── upload_index_to_blob.py  # Upload index files to Azure Blob Storage
