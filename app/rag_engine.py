@@ -11,6 +11,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 BLOB_CONTAINER_URL = os.getenv("BLOB_CONTAINER_URL")
+INDEX_CONTAINER_NAME = os.getenv("INDEX_CONTAINER_NAME")
 
 
 class SimpleRAGEngine:
@@ -76,12 +77,39 @@ class SimpleRAGEngine:
             print(f"Warning: impossible de charger les PDF locaux: {exc}")
             return []
 
+    def _load_prebuilt_index_from_blob(self):
+        """Download and load a prebuilt FAISS index (index.faiss + index.pkl) from Blob Storage."""
+        print(f"Chargement de l'index pre-construit depuis le container '{INDEX_CONTAINER_NAME}'...")
+        try:
+            blob_service_client = BlobServiceClient.from_connection_string(BLOB_CONTAINER_URL)
+            container_client = blob_service_client.get_container_client(container=INDEX_CONTAINER_NAME)
+
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                for blob_name in ["index.faiss", "index.pkl"]:
+                    blob_client = container_client.get_blob_client(blob_name)
+                    data = blob_client.download_blob().readall()
+                    local_path = os.path.join(tmp_dir, blob_name)
+                    with open(local_path, "wb") as f:
+                        f.write(data)
+
+                self.vector_store = FAISS.load_local(
+                    tmp_dir, self.embeddings, allow_dangerous_deserialization=True
+                )
+            print("Index pre-construit charge avec succes.")
+            return True
+        except Exception as exc:
+            print(f"Warning: impossible de charger l'index pre-construit: {exc}")
+            return False
+
     def initialize_store(self):
-        """Initialize vector store from Blob Storage or local files."""
+        """Initialize vector store from a prebuilt index, Blob Storage, or local files."""
         try:
             self._load_embeddings()
 
-            # Try Blob Storage first, fall back to local
+            if INDEX_CONTAINER_NAME:
+                if self._load_prebuilt_index_from_blob():
+                    return
+
             if BLOB_CONTAINER_URL:
                 documents = self._load_documents_from_blob()
             else:

@@ -123,7 +123,7 @@ jobs:
                 --name "${{ env.AZURE_CONTAINER_APP_NAME }}" \
                 --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
                 --image "$IMAGE" \
-                --set-env-vars "BLOB_CONTAINER_URL=secretref:blob-connection-string"
+                --set-env-vars "BLOB_CONTAINER_URL=secretref:blob-connection-string" "INDEX_CONTAINER_NAME=medquad-index" \
 
             else
 
@@ -140,8 +140,8 @@ jobs:
                 --registry-username "${{ secrets.ACR_USERNAME }}" \
                 --registry-password "${{ secrets.ACR_PASSWORD }}" \
                 --secrets "blob-connection-string=${BLOB_CONNECTION_STRING}" \
-                --env-vars "BLOB_CONTAINER_URL=secretref:blob-connection-string" \
-                --cpu 0.5 \
-                --memory 1.0Gi
+                --env-vars "BLOB_CONTAINER_URL=secretref:blob-connection-string INDEX_CONTAINER_NAME=medquad-index" \
+                --cpu 1.0 \
+                --memory 2.0Gi
 
             fi
