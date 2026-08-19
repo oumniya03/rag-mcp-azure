@@ -1,222 +1,319 @@
-# RAG MCP Azure - Lightweight Retrieval-Augmented Generation Service
+# O.M. Health AI — Medical RAG Assistant
 
-A production-ready **Retrieval-Augmented Generation (RAG)** API deployed on **Azure Container Apps**. Built for efficiency with a CPU-only footprint, in-memory vector storage, Azure Blob Storage ingestion, and full MCP protocol compatibility — verified end-to-end.
+A production-ready **AI-powered medical assistant** built on a full-stack RAG (Retrieval-Augmented Generation) architecture. The backend runs on **Azure Container Apps**, the frontend is deployed on **Vercel**. Designed for reliability, security, and a polished end-user experience.
+
+**Live demo:** `https://rag-mcp-azure.redsand-f0795bb6.francecentral.azurecontainerapps.io`
 
 ---
 
 ## 🎯 Project Overview
 
 **What it does:**
-- Ingests PDF documents from Azure Blob Storage (with local folder fallback for development)
-- Chunks and embeds them using sentence transformers
-- Stores embeddings in FAISS (in-memory vector store)
-- Serves FastAPI HTTP endpoints for document retrieval, reindexing, and ad-hoc PDF upload
-- Exposes a real, tested MCP (Model Context Protocol) server over Streamable HTTP
-- Returns only relevant document context (no final LLM synthesis — kept client-side by design)
+- Answers medical questions in natural language using the **MedQuAD** dataset (16,000+ validated Q&A pairs from the NIH)
+- Retrieves the most relevant medical context from a FAISS vector index using **MMR search** (Maximal Marginal Relevance)
+- Synthesizes a clear, professional answer via **Claude Haiku** (Anthropic) through OpenRouter — entirely server-side
+- Exposes a clean chat UI with dark mode, suggestion chips, and Markdown rendering
+- Also exposes a **MCP (Model Context Protocol)** endpoint for agentic AI integrations
 
-**Design philosophy:**
-- Lightweight: Optimized for 8 GB RAM, CPU-only environments
-- Serverless: Deployed on Azure Container Apps (auto-scaling, managed infrastructure)
-- Cost-effective: No heavy vector databases or GPU requirements
-- Production-ready: Automated CI/CD with GitHub Actions, tested REST endpoints, and a verified MCP integration
+**Architecture philosophy:**
+- **Security by design:** the LLM API key never reaches the browser — all synthesis happens in the backend
+- **Privacy by design:** zero client-side storage of sensitive data, stateless request processing
+- **Lightweight:** CPU-only, no GPU, no heavy vector database — optimized for cost-effective cloud deployment
+- **Production-ready:** automated CI/CD, tested endpoints, verified MCP integration
 
 ---
 
 ## 📊 Tech Stack
 
-| Component | Technology | Notes |
-|-----------|-----------|-------|
-| **Framework** | FastAPI + Uvicorn | Async HTTP server |
-| **RAG Engine** | LangChain + FAISS | PDF loading, text splitting, embeddings, vector search |
-| **Embeddings** | HuggingFace Sentence Transformers | CPU-optimized models (all-MiniLM-L6-v2) |
-| **Document Storage** | Azure Blob Storage | Source of truth for PDFs in production |
-| **MCP Server** | MCP SDK v2 (mcp.server.mcpserver), Streamable HTTP transport | Real, tested tool interface for agentic retrieval |
-| **Containerization** | Docker | CPU-optimized image (Python 3.12-slim, no GPU torch) |
-| **Orchestration** | Azure Container Apps | Managed, auto-scaling, ingress |
-| **Container Registry** | Azure Container Registry (ACR) | Image storage and management |
-| **CI/CD** | GitHub Actions | Automated tests, build, push, and idempotent deploy |
+| Layer | Technology | Notes |
+|-------|-----------|-------|
+| **Backend framework** | FastAPI + Uvicorn | Async HTTP, Pydantic validation |
+| **RAG engine** | LangChain + FAISS | MMR search, in-memory vector store |
+| **Embeddings** | HuggingFace `all-MiniLM-L6-v2` | CPU-optimized, 33 MB |
+| **LLM** | Claude Haiku 4.5 via OpenRouter | Called server-side only |
+| **HTTP client** | httpx | Async OpenRouter calls from backend |
+| **Knowledge base** | MedQuAD dataset (NIH) | 16,000+ medical Q&A pairs, pre-built FAISS index |
+| **Document storage** | Azure Blob Storage | Source of truth for index files in production |
+| **MCP server** | MCP SDK v2, Streamable HTTP | Agentic tool interface for external AI agents |
+| **Containerization** | Docker | `python:3.12-slim`, CPU-only torch wheel |
+| **Backend hosting** | Azure Container Apps | Serverless, auto-scaling, managed ingress |
+| **Container registry** | Azure Container Registry (ACR) | Image storage |
+| **Frontend hosting** | Vercel | Static HTML/CSS/JS, global CDN |
+| **CI/CD** | GitHub Actions | Test → build → push → deploy, idempotent |
 
 ---
+
 ## 🏛️ Architecture
 
-![RAG MCP Azure Architecture](./docs/rag_mcp_azure_architecture.png)
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        USER BROWSER                             │
+│              frontend/ (HTML + CSS + JS)                        │
+│              Hosted on Vercel (static)                          │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │  POST /chat  { query }
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              AZURE CONTAINER APPS (Backend)                     │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │  FastAPI  app/main.py                                   │   │
+│  │                                                         │   │
+│  │  POST /chat ──► rag_engine.search() (MMR, k=3)         │   │
+│  │                        │                               │   │
+│  │                        ▼                               │   │
+│  │              FAISS index (in-memory)                   │   │
+│  │              MedQuAD Q&A embeddings                    │   │
+│  │                        │                               │   │
+│  │                        ▼                               │   │
+│  │         httpx ──► OpenRouter API                       │   │
+│  │                  Claude Haiku 4.5                      │   │
+│  │                  (OPENROUTER_API_KEY — secret Azure)   │   │
+│  │                        │                               │   │
+│  │                        ▼                               │   │
+│  │              { "answer": "..." }                       │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  Also exposes: /query (raw context), /reindex, /upload, /mcp   │
+└─────────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+              Azure Blob Storage
+              (FAISS index files: index.faiss + index.pkl)
+```
 
-1. **Blob Storage** — stores the source documents (PDF)
-2. **RAG Engine** — ingestion, chunking, embeddings generation
-3. **FAISS** — in-memory vector store, similarity search
-4. **FastAPI / MCP** — exposes the REST API and the MCP server, both within the same process
-5. The whole pipeline runs inside **a single Azure Container App**, publicly exposed over HTTPS
+**Key security boundary:** the `OPENROUTER_API_KEY` is stored as an Azure Container Apps secret and injected at runtime. It is never sent to the browser, never committed to source, and never logged.
+
 ---
+
 ## 🏗️ Project Structure
 
 ```
 rag-mcp-azure/
 ├── app/
-│   ├── data/                    # PDF documents for local dev (fallback)
-│   │   └── *.pdf
-│   ├── main.py                  # FastAPI app + MCP server (mount, lifespan, security)
-│   └── rag_engine.py            # RAG logic (Blob/local ingestion, chunking, search)
-├── tests/
-│   ├── test_api.py              # REST endpoint tests (run in CI)
-│   └── test_mcp_integration.py  # Real MCP client tests (manual, live server required)
-├── .github/
-│   └── workflows/
-│       └── deploy.yml           # GitHub Actions CI/CD pipeline
+│   ├── data/                    # PDF fallback for local dev
+│   ├── main.py                  # FastAPI app: /chat, /query, /reindex, /upload, MCP mount
+│   └── rag_engine.py            # RAG pipeline: MMR search, Blob/local ingestion, FAISS
+├── frontend/
+│   ├── index.html               # Full-page UI: navbar, hero, chat card, features, FAQ
+│   ├── style.css                # Design system: CSS variables, dark mode, responsive
+│   └── app.js                   # Chat logic: POST /chat, Markdown rendering, dark mode toggle
+├── medquad_index/
+│   ├── index.faiss              # Pre-built FAISS index (MedQuAD)
+│   └── index.pkl                # Embedding metadata
 ├── scripts/
+│   ├── build_index_offline.py   # Build FAISS index from medquad.csv locally
+│   ├── upload_index_to_blob.py  # Upload index files to Azure Blob Storage
 │   └── deploy-aca.sh            # Manual Azure deployment script
-├── Dockerfile                    # Production image definition
-├── .dockerignore
-├── .gitignore
-├── pytest.ini                    # Test markers and asyncio config
+├── tests/
+│   ├── test_api.py              # REST endpoint tests (CI)
+│   └── test_mcp_integration.py  # MCP client tests (manual, live server)
+├── .github/workflows/deploy.yml # CI/CD pipeline
+├── medquad.csv                  # Source dataset (NIH MedQuAD)
+├── Dockerfile
 ├── requirements.txt
 └── README.md
 ```
 
 ---
 
+## 🧠 RAG Engine — Key Design Decisions
+
+### Dataset: MedQuAD
+
+The knowledge base is built from the **MedQuAD** (Medical Question Answering Dataset) published by the NIH. It contains over 16,000 question-answer pairs covering diseases, symptoms, treatments, and diagnostics across dozens of medical specialties.
+
+Unlike a pure document ingestion pipeline, the FAISS index here embeds **both the question and the answer text**, giving the retrieval step richer semantic context to match against user queries.
+
+### MMR Search (Maximal Marginal Relevance)
+
+The `search()` method in `rag_engine.py` uses **MMR** instead of plain cosine similarity:
+
+```python
+results = self.vector_store.max_marginal_relevance_search(query, k=3, fetch_k=20)
+```
+
+- `fetch_k=20`: retrieve the top 20 candidates by similarity
+- `k=3`: from those 20, select the 3 most **diverse** results
+
+This prevents the top-3 results from being near-duplicate chunks (a common failure mode when multiple similar Q&A pairs exist in the dataset), and ensures the LLM receives varied, complementary context.
+
+### Pre-built Index Loading
+
+In production, the FAISS index is **pre-built offline** from `medquad.csv` and stored in Azure Blob Storage (`INDEX_CONTAINER_NAME`). On startup, the engine downloads `index.faiss` + `index.pkl` directly — no re-embedding at boot time, which keeps cold start under 30 seconds on 0.5 CPU.
+
+---
+
+## 🔐 Security Architecture
+
+### API Key — Server-Side Only
+
+The most important security change from the initial prototype: **the OpenRouter API key never leaves the server.**
+
+| | Old architecture | Current architecture |
+|---|---|---|
+| Who calls OpenRouter? | Browser (JavaScript) | Backend (Python/httpx) |
+| Where is the key? | `sessionStorage` (client) | Azure Container Apps secret |
+| Key visible in DevTools? | ✅ Yes | ❌ No |
+| Key in source code? | Risk | Never — `os.getenv()` only |
+
+The key is injected at deploy time:
+
+```powershell
+az containerapp secret set --name rag-mcp-azure --resource-group rg-rag-mcp-azure `
+  --secrets "openrouter-api-key=sk-or-v1-..."
+
+az containerapp update --name rag-mcp-azure --resource-group rg-rag-mcp-azure `
+  --set-env-vars "OPENROUTER_API_KEY=secretref:openrouter-api-key"
+```
+
+### Full Security Checklist
+
+- ✅ **OPENROUTER_API_KEY** — Azure Container Apps secret, never in source or env plaintext
+- ✅ **BLOB_CONNECTION_STRING** — Azure Container Apps secret, re-applied on every CI deploy
+- ✅ **GitHub Secrets** — Azure, ACR, and Blob credentials stored as Actions secrets
+- ✅ **Service Principal** — deployment uses a scoped Azure AD SP, not the subscription owner
+- ✅ **Pydantic validation** — all request bodies validated before processing
+- ✅ **MCP DNS rebinding protection** — `TransportSecuritySettings` scoped to known hosts
+- ✅ **CORS** — open for public demo (MedQuAD is public data); restrict for production use
+- ✅ **Key rotation practiced** — Blob Storage key was rotated after accidental log exposure during early debugging
+
+---
+
+## 🖥️ Frontend — UI/UX
+
+The frontend is a **static single-page application** (HTML + CSS + JS, no framework) deployed on Vercel.
+
+### Features
+
+- **Full-page layout** — navbar, hero section (2-column: pitch + live chat), features grid, security section, FAQ
+- **Functional chat card** — real-time POST to `/chat`, typing indicator, timestamped messages
+- **Markdown rendering** — bot responses rendered with headers, bold, lists, blockquotes (custom lightweight parser, no library)
+- **Lucide Icons** — SVG icon library replacing all native emojis for consistent cross-platform rendering
+- **Dark mode** — toggled via a settings dropdown in the navbar, persisted in `localStorage`, applied via `body[data-theme="dark"]` CSS variable overrides with smooth transition
+- **Suggestion chips** — pre-filled question shortcuts that disappear after first use
+- **Privacy by design** — zero `sessionStorage`/`localStorage` usage for sensitive data; no API key ever stored client-side
+
+### Dark Mode Implementation
+
+```css
+/* Light (default) */
+:root {
+    --bg-color: #fdfdfd;
+    --text-main: #111827;
+    --white: #ffffff;
+    --bot-bg: #f3f4f6;
+    /* ... */
+}
+
+/* Dark */
+body[data-theme="dark"] {
+    --bg-color: #111827;
+    --text-main: #f3f4f6;
+    --white: #1f2937;
+    --bot-bg: #374151;
+    /* ... */
+}
+```
+
+All colors in `style.css` use CSS variables — no hardcoded hex values for interface elements — ensuring the dark mode applies globally and consistently.
+
+---
+
+## 📡 API Endpoints
+
+### POST /chat ⭐ Primary endpoint
+Full RAG + LLM pipeline. Retrieves context from FAISS, calls Claude Haiku via OpenRouter server-side, returns a synthesized medical answer.
+
+**Request:**
+```json
+{ "query": "What are the symptoms of hypertension?" }
+```
+
+**Response:**
+```json
+{ "answer": "Hypertension is often called the 'silent killer' because..." }
+```
+
+### POST /query
+Returns raw FAISS context chunks without LLM synthesis. Used internally and for debugging/testing.
+
+**Response:**
+```json
+{
+  "query": "...",
+  "context_extrait": "Extrait 1:\n...\n\nExtrait 2:\n..."
+}
+```
+
+### GET /health
+```json
+{ "status": "ok" }
+```
+
+### POST /reindex
+Rebuilds the FAISS index from Blob Storage (or local files). Call after uploading new documents.
+
+### POST /upload
+Uploads a PDF and adds it to the in-memory index (ephemeral — lost on restart or `/reindex`).
+
+### MCP `/mcp-server/mcp`
+See [MCP Protocol Integration](#-mcp-protocol-integration) below.
+
+---
+
 ## 🔌 MCP Protocol Integration
 
-### What is MCP?
+**Model Context Protocol (MCP)** is an open standard for connecting AI agents to external tools. O.M. Health AI exposes a `search_documents` tool over **Streamable HTTP**, allowing any MCP-compatible agent (Claude Desktop, custom agents) to query the medical knowledge base directly.
 
-**Model Context Protocol (MCP)** is an open standard for connecting AI agents to external tools and data sources. Instead of embedding knowledge retrieval inside an LLM, MCP exposes it as a **discoverable tool** that any compatible agent (Claude, Gemini, custom LLMs) can invoke over a standard transport.
+### Endpoint
 
-**Key advantage for interviews:** Demonstrates a real, working implementation of an emerging agentic AI standard, verified end-to-end with the official MCP client SDK — not just a REST API with an MCP label attached.
-
-### Transport & Endpoint
-
-This server exposes MCP over **Streamable HTTP** (the modern MCP transport, superseding SSE), mounted on the same FastAPI app that serves the REST endpoints.
-
-| Environment | MCP endpoint |
+| Environment | URL |
 |---|---|
 | Local | `http://localhost:8000/mcp-server/mcp` |
 | Production | `https://rag-mcp-azure.redsand-f0795bb6.francecentral.azurecontainerapps.io/mcp-server/mcp` |
 
-The MCP session manager is initialized via FastAPI's `lifespan`, so it starts and stops cleanly alongside the web server (see `app/main.py`).
-
 ### Exposed Tool
 
-| Tool | Input | Output | Purpose |
-|------|-------|--------|----------|
-| `search_documents` | `query: string` | Document chunks (top-3 by relevance) | Search the RAG knowledge base |
+| Tool | Input | Output |
+|------|-------|--------|
+| `search_documents` | `query: string` | Top-3 MMR-ranked medical context chunks |
 
-### Tool Schema
-
-```json
-{
-  "tools": [
-    {
-      "name": "search_documents",
-      "description": "Search the RAG knowledge base for relevant document chunks matching a query.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "query": {
-            "type": "string",
-            "description": "The search query to find relevant document chunks (e.g., 'What is the contract duration?')"
-          }
-        },
-        "required": ["query"]
-      }
-    }
-  ]
-}
-```
-
-### A note on testing with `curl`
-
-A plain `curl` GET request to the MCP endpoint returns a `400 Bad Request` with a JSON-RPC error:
-
-```json
-{"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"Bad Request: Missing session ID"}}
-```
-
-**This is expected, not a bug.** MCP over Streamable HTTP requires a session handshake before any tool call — `curl` alone doesn't perform this. This response confirms the server correctly speaks the MCP JSON-RPC protocol; it's just rejecting an incomplete request. A real MCP client handles this handshake automatically.
-
-### DNS Rebinding Protection
-
-The MCP Python SDK enables DNS rebinding protection by default, restricting the `Host` header to `localhost`/`127.0.0.1` unless explicitly configured otherwise. Since this server is deployed on a public Azure domain, `TransportSecuritySettings` is configured in `app/main.py` to explicitly allow both local development hosts and the production Azure Container Apps hostname:
-
-```python
-security_settings = TransportSecuritySettings(
-    enable_dns_rebinding_protection=True,
-    allowed_hosts=[
-        "127.0.0.1:*", "localhost:*", "[::1]:*",
-        "rag-mcp-azure.redsand-f0795bb6.francecentral.azurecontainerapps.io",
-    ],
-    allowed_origins=[
-        "http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*",
-        "https://rag-mcp-azure.redsand-f0795bb6.francecentral.azurecontainerapps.io",
-    ],
-)
-```
-
-Without this, requests to the production URL fail with `421 Misdirected Request: Invalid Host header` — the protection is working correctly, it just needs the production host explicitly allow-listed.
-
-### Connect with an MCP Client
-
-**Claude Desktop** (`claude_desktop_config.json` — on Windows: `%APPDATA%\Claude\claude_desktop_config.json`):
-
-```json
-{
-  "mcpServers": {
-    "rag-mcp-azure": {
-      "url": "https://rag-mcp-azure.redsand-f0795bb6.francecentral.azurecontainerapps.io/mcp-server/mcp"
-    }
-  }
-}
-```
-
-*(Exact config keys depend on your MCP client version — some clients use `url`, others require a `transport: "streamable_http"` field. Check your client's MCP documentation if the connection fails.)*
-
-**Python MCP client** — verified working end-to-end against production:
+### Python client example (verified end-to-end)
 
 ```python
 import asyncio
 from mcp.client.streamable_http import streamable_http_client
 from mcp import ClientSession
 
-async def test_search():
+async def main():
     url = "https://rag-mcp-azure.redsand-f0795bb6.francecentral.azurecontainerapps.io/mcp-server/mcp"
     async with streamable_http_client(url) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
-            tools = await session.list_tools()
-            print(f"Available tools: {[t.name for t in tools.tools]}")
-            result = await session.call_tool(
-                "search_documents", {"query": "durée maximale contrat intérimaire"}
-            )
+            result = await session.call_tool("search_documents", {"query": "symptoms of diabetes"})
             for content in result.content:
                 if hasattr(content, "text"):
                     print(content.text)
 
-asyncio.run(test_search())
+asyncio.run(main())
 ```
 
-Sample output:
-```
-Available tools: ['search_documents']
-Extrait 1:
-Article 26
-§1er. Par poste de travail, pas plus de trois tentatives, de maximum six mois par intérimaire...
-```
+### Claude Desktop config
 
-### Automated Integration Testing
-
-`tests/test_mcp_integration.py` contains automated tests using the same client flow, marked with `@pytest.mark.integration` and excluded from the CI pipeline (since they require a live deployed server and shouldn't run against a service mid-deployment). Run them manually with:
-
-```bash
-pytest tests/test_mcp_integration.py -v
+```json
+{
+  "mcpServers": {
+    "om-health-ai": {
+      "url": "https://rag-mcp-azure.redsand-f0795bb6.francecentral.azurecontainerapps.io/mcp-server/mcp"
+    }
+  }
+}
 ```
 
-Or against a local instance:
-```powershell
-$env:MCP_TEST_URL="http://localhost:8000/mcp-server/mcp"
-pytest tests/test_mcp_integration.py -v
-```
+### DNS Rebinding Protection
 
-### Known limitation
-
-The MCP mount path (`/mcp-server/mcp`) is a workaround for a routing conflict between the MCP SDK's internal `/mcp` route and FastAPI's REST routes at root level. A cleaner path structure is a possible future improvement, but the current setup is fully functional and tested end-to-end.
+The MCP SDK restricts the `Host` header to `localhost` by default. `TransportSecuritySettings` in `app/main.py` explicitly allow-lists the production Azure hostname — without this, requests return `421 Misdirected Request`.
 
 ---
 
@@ -224,481 +321,225 @@ The MCP mount path (`/mcp-server/mcp`) is a workaround for a routing conflict be
 
 ### Local Development
 
-**1. Clone and setup:**
 ```bash
 git clone https://github.com/oumniya03/rag-mcp-azure.git
 cd rag-mcp-azure
 python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\Activate
+.venv\Scripts\Activate        # Windows
+# source .venv/bin/activate   # macOS/Linux
 pip install -r requirements.txt
 ```
 
-**2. Add PDF documents (local dev fallback, used when `BLOB_CONTAINER_URL` is not set):**
+Set environment variables (create a `.env` or export directly):
+
 ```bash
-cp your-documents.pdf app/data/
+# Required for LLM synthesis
+export OPENROUTER_API_KEY=sk-or-v1-...
+
+# Optional: load FAISS index from Blob Storage instead of local medquad_index/
+export INDEX_CONTAINER_NAME=medquad-index
+export BLOB_CONTAINER_URL=<your-connection-string>
 ```
 
-**3. Run locally:**
+Run the backend:
+
 ```bash
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-**4. Test the endpoints:**
+Open `frontend/index.html` directly in a browser, or serve it locally:
 
-Health check:
 ```bash
-curl http://localhost:8000/health
-# Response: {"status":"ok"}
+cd frontend && python -m http.server 3000
 ```
 
-RAG query:
+Test the chat endpoint:
+
 ```bash
-curl -X POST http://localhost:8000/query \
+curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"query":"What is the contract duration?"}'
-```
-
-Response format:
-```json
-{
-  "query": "What is the contract duration?",
-  "context_extrait": "Excerpt 1:\n...\n\nExcerpt 2:\n..."
-}
+  -d '{"query": "What are the symptoms of high blood pressure?"}'
 ```
 
 ---
 
 ## 🐳 Docker
 
-### Build locally
 ```bash
-docker build -t rag-mcp-azure:latest .
+# Build
+docker build -t om-health-ai:latest .
+
+# Run (pass the API key at runtime)
+docker run --rm -p 8000:8000 \
+  -e OPENROUTER_API_KEY=sk-or-v1-... \
+  om-health-ai:latest
 ```
 
-### Run locally
-```bash
-docker run --rm -p 8000:8000 rag-mcp-azure:latest
-```
-
-### Image size optimization
-- **Base image:** `python:3.12.8-slim` (~150 MB)
-- **Torch:** CPU-only wheel (no CUDA libraries)
-- **Cache layers:** Maximize reuse during builds
-- **Result:** ~500 MB final image (compressed on ACR)
-
----
-
-## 📦 Azure Blob Storage Integration
-
-This service ingests documents from **Azure Blob Storage** in production. This is the recommended approach — PDFs live outside the Docker image, so the knowledge base can be updated without a rebuild.
-
-### Architecture
-
-```
-┌──────────────────────────────────────┐
-│   Azure Blob Storage (documents/)    │
-│   - travail_interimaire.pdf          │
-└──────────────────┬───────────────────┘
-                    │
-                    ▼
-        ┌──────────────────────┐
-        │  RAG Engine          │
-        │ (rag_engine.py)      │
-        │ - Download to temp   │
-        │   file (PyPDFLoader  │
-        │   needs a real path) │
-        │ - Chunk & embed      │
-        └──────────────────────┘
-                    │
-                    ▼
-        ┌──────────────────────┐
-        │  FAISS Index         │
-        │  (in-memory)         │
-        └──────────────────────┘
-                    │
-                    ▼
-        ┌──────────────────────┐
-        │  FastAPI Endpoints   │
-        │  /query, /reindex,   │
-        │  /upload             │
-        └──────────────────────┘
-```
-
-### Setup Instructions
-
-**1. Create a storage account and container:**
-
-```powershell
-az storage account create --name ragmcpstorage26 --resource-group rg-rag-mcp-azure --location francecentral --sku Standard_LRS
-az storage container create --name documents --account-name ragmcpstorage26 --auth-mode login
-```
-
-> The container name is hardcoded as `"documents"` in `rag_engine.py` — keep this name or update the code if you change it.
-
-**2. Upload PDF files:**
-
-```powershell
-az storage blob upload-batch --destination documents --source app/data --account-name ragmcpstorage26 --auth-mode key
-```
-
-**3. Store the connection string as a Container App secret (not a plaintext env var):**
-
-```powershell
-$connString = az storage account show-connection-string --name ragmcpstorage26 --resource-group rg-rag-mcp-azure --query connectionString -o tsv
-
-az containerapp secret set --name rag-mcp-azure --resource-group rg-rag-mcp-azure --secrets "blob-connection-string=$connString"
-
-az containerapp update --name rag-mcp-azure --resource-group rg-rag-mcp-azure --set-env-vars "BLOB_CONTAINER_URL=secretref:blob-connection-string"
-```
-
-> **Important:** this configuration is also codified in `.github/workflows/deploy.yml` (see below) so it persists across every automated deployment — setting it manually alone would be overwritten by the next `git push`.
-
-**4. Trigger reindexing after adding new PDFs:**
-
-```bash
-curl -X POST https://rag-mcp-azure.redsand-f0795bb6.francecentral.azurecontainerapps.io/reindex
-# Response: {"status": "Réindexation réussie."}
-```
-
-### How it Works
-
-- **On startup:** If `BLOB_CONTAINER_URL` is set, the service downloads all PDFs from the `documents` container in Blob Storage to temporary files (`PyPDFLoader` requires a real file path, not an in-memory stream) and indexes them. Otherwise, it falls back to the local `app/data/` folder.
-- **On `/reindex` call:** The service re-downloads all documents from Blob Storage and rebuilds the FAISS index from scratch.
-- **Ephemeral uploads:** Documents uploaded via `/upload` are added to the in-memory index only — they are **not** persisted to Blob Storage and will be lost on restart or on the next `/reindex` call (which rebuilds from Blob Storage/local files only).
-
-### A real debugging lesson: `BytesIO` vs `PyPDFLoader`
-
-An early version of this integration passed downloaded blob bytes directly to `PyPDFLoader(BytesIO(blob_data))`, which fails silently with `File path <_io.BytesIO object> is not a valid file or url` — `PyPDFLoader` requires an actual file path. The fix: write blob bytes to a `tempfile.NamedTemporaryFile` first, then load from that path, deleting it afterward. This is implemented in `rag_engine.py`.
+**Image profile:** `python:3.12-slim` base, CPU-only torch wheel, ~500 MB compressed on ACR.
 
 ---
 
 ## ☁️ Azure Deployment
 
-### Current Production Environment
+### Production Resources
 
-**Live URL:** `https://rag-mcp-azure.redsand-f0795bb6.francecentral.azurecontainerapps.io`
+| Resource | Name | Notes |
+|---|---|---|
+| Container App | `rag-mcp-azure` | Backend API |
+| Resource Group | `rg-rag-mcp-azure` | France Central |
+| ACA Environment | `cae-rag-mcp-azure` | Shared environment |
+| ACR | `ragmcpacr26` | Docker image registry |
+| Blob Storage | `ragmcpstorage26` | FAISS index + source PDFs |
+| Compute | 0.5 CPU / 1.0 Gi | Sufficient for CPU-only inference |
 
-**Resources:**
-- **Container App Name:** `rag-mcp-azure`
-- **Resource Group:** `rg-rag-mcp-azure`
-- **ACA Environment:** `cae-rag-mcp-azure`
-- **Region:** France Central
-- **ACR:** `ragmcpacr26` (in `rg-rag-mcp-ne`)
-- **Blob Storage:** `ragmcpstorage26` (container: `documents`)
-- **Compute:** 0.5 CPU, 1.0 Gi memory
-
-### GitHub Secrets (Required)
-
-Set these in your GitHub repository settings (Settings → Secrets and variables → Actions):
+### Required GitHub Secrets
 
 | Secret | Description |
 |--------|-------------|
-| `AZURE_CREDENTIALS` | Service principal JSON (from `az ad sp create-for-rbac --sdk-auth`) |
-| `ACR_USERNAME` | ACR admin username (from `az acr credential show`) |
-| `ACR_PASSWORD` | ACR admin password (from `az acr credential show`) |
-| `BLOB_CONNECTION_STRING` | Azure Blob Storage connection string, re-applied as a Container App secret on every deploy |
+| `AZURE_CREDENTIALS` | Service principal JSON (`az ad sp create-for-rbac --sdk-auth`) |
+| `ACR_USERNAME` | ACR admin username |
+| `ACR_PASSWORD` | ACR admin password |
+| `BLOB_CONNECTION_STRING` | Blob Storage connection string (re-applied as Container App secret on every deploy) |
+| `OPENROUTER_API_KEY` | OpenRouter API key (applied as Container App secret) |
 
-### Deployment Pipeline
+### CI/CD Pipeline (`.github/workflows/deploy.yml`)
 
-The workflow [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) runs on every push to `main`:
+On every push to `main`:
 
-1. **Checkout code**
-2. **Python setup** (3.12) and dependency install
-3. **Run tests** (`pytest tests/ -v -m "not integration"` — REST endpoint tests only; MCP integration tests are excluded since they require a live server)
-4. **Azure login** (service principal)
-5. **Docker Buildx setup**, login to ACR, build & push image
-6. **Verify** the Container Apps environment exists
-7. **Deploy:** if the Container App already exists, `az containerapp secret set` (refreshing the Blob Storage secret) followed by `az containerapp update`; otherwise `az containerapp create` with the secret and image set from scratch — this idempotent logic prevents accidentally wiping the app's configuration on redeploy
-
-**Deploy on push:**
-```bash
-git push origin main  # Triggers the workflow
-```
-
-**Manual deploy (if needed):**
-```bash
-bash scripts/deploy-aca.sh
-```
-
----
-
-## 📡 API Endpoints
-
-### GET /health
-Health check endpoint.
-
-**Response:**
-```json
-{"status": "ok"}
-```
-
-### POST /query
-Retrieve document context for a given query.
-
-**Request:**
-```json
-{"query": "your question here"}
-```
-
-**Response:**
-```json
-{
-  "query": "your question here",
-  "context_extrait": "Excerpt 1:\n...\n\nExcerpt 2:\n...\n\nExcerpt 3:\n..."
-}
-```
-
-### POST /reindex
-Refresh the in-memory FAISS index from Blob Storage (if configured) or local files.
+1. Install dependencies
+2. Run REST tests (`pytest tests/ -v -m "not integration"`)
+3. Login to Azure (service principal)
+4. Build & push Docker image to ACR
+5. Idempotent deploy: `az containerapp update` if exists, `az containerapp create` otherwise
+6. Re-apply both secrets (`blob-connection-string`, `openrouter-api-key`) on every deploy
 
 ```bash
-curl -X POST http://localhost:8000/reindex
-# Response: {"status": "Réindexation réussie."}
+git push origin main  # triggers the full pipeline
 ```
 
-**Use case:** After uploading new PDFs to Blob Storage, call this endpoint to update the search index without restarting the service.
+### Blob Storage — FAISS Index
 
-### POST /upload
-Upload a PDF document and add it to the RAG index (ephemeral, in-memory only).
+The pre-built FAISS index is stored in Blob Storage and loaded at startup (no re-embedding on cold start):
 
-```bash
-curl -X POST http://localhost:8000/upload \
-  -F "file=@your-document.pdf"
+```powershell
+# Upload index files
+az storage blob upload-batch `
+  --destination medquad-index `
+  --source medquad_index/ `
+  --account-name ragmcpstorage26 `
+  --auth-mode key
+
+# Set the index container env var
+az containerapp update --name rag-mcp-azure --resource-group rg-rag-mcp-azure `
+  --set-env-vars "INDEX_CONTAINER_NAME=medquad-index"
 ```
-
-**Response:**
-```json
-{
-  "status": "Succès: 42 chunks ajoutés à l'index.",
-  "success": true,
-  "filename": "your-document.pdf"
-}
-```
-
-**Important:** Uploaded documents are lost on restart or on the next `/reindex` call. To persist documents permanently, upload them directly to Blob Storage instead.
-
-### MCP Endpoint (`/mcp-server/mcp`)
-See the [MCP Protocol Integration](#-mcp-protocol-integration) section above.
-
----
-
-## 🔧 Configuration
-
-### Environment variables
-- `BLOB_CONTAINER_URL` (optional): Azure Blob Storage connection string. If set, documents load from the `documents` Blob container instead of local files. In production this is injected via a Container App secret reference, never as plaintext.
-
-### Local tweaking
-Edit `app/rag_engine.py` to customize:
-- `DATA_DIR`: local PDF fallback folder
-- `chunk_size` / `chunk_overlap`: passed to `RecursiveCharacterTextSplitter` (default: 500 / 50)
-- `k`: number of results returned by `search()` (default: 3)
-- Embedding model: change the `HuggingFaceEmbeddings` model name
-
----
-
-## 📖 Key Files Explained
-
-### app/main.py
-- FastAPI application with four REST endpoints (`/health`, `/query`, `/reindex`, `/upload`)
-- MCP server (Streamable HTTP) mounted at `/mcp-server/mcp`, exposing the `search_documents` tool
-- FastAPI `lifespan` manages the MCP session manager's async lifecycle (required — without it, MCP requests fail with `RuntimeError: Task group is not initialized`)
-- `TransportSecuritySettings` configured to allow the production Azure host (DNS rebinding protection)
-
-### app/rag_engine.py
-- `SimpleRAGEngine` class: orchestrates the RAG pipeline
-- `initialize_store()`: loads PDFs from Blob Storage or local folder, chunks, embeds, indexes
-- `_load_documents_from_blob()`: downloads blobs to temp files before parsing (see PyPDFLoader note above)
-- `add_documents_from_bytes()`: powers `/upload` (ephemeral, in-memory only)
-- `ingest()`: powers `/reindex`
-- `search()`: FAISS similarity search, returns raw context (no LLM synthesis)
-
-### Dockerfile
-- CPU-only PyTorch wheel (no CUDA libraries)
-- Minimal layer footprint, `python:3.12.8-slim` base
-- Runs as non-root user
-
-### .github/workflows/deploy.yml
-- Runs REST tests, builds and pushes the Docker image, deploys idempotently to Azure Container Apps
-- Re-applies the Blob Storage secret on every deploy so it survives redeployment
 
 ---
 
 ## 🧪 Testing
 
-### Automated tests (CI)
+### Automated (CI)
+
 ```bash
 pytest tests/ -v -m "not integration"
 ```
-15 tests covering `/health`, `/query`, `/reindex`, `/upload` — runs automatically in GitHub Actions on every push to `main`.
 
-### MCP integration tests (manual, requires a live server)
+Covers `/health`, `/query`, `/reindex`, `/upload` — runs on every push to `main`.
+
+### MCP Integration (manual, requires live server)
+
 ```bash
 pytest tests/test_mcp_integration.py -v
-```
-3 tests using the real MCP client SDK: session handshake, tool discovery, and tool invocation — run against production by default (override with the `MCP_TEST_URL` environment variable).
 
-### Production endpoint test (PowerShell)
+# Against local instance:
+$env:MCP_TEST_URL="http://localhost:8000/mcp-server/mcp"
+pytest tests/test_mcp_integration.py -v
+```
+
+### Quick production smoke test
+
 ```powershell
+# Health
 Invoke-RestMethod -Uri "https://rag-mcp-azure.redsand-f0795bb6.francecentral.azurecontainerapps.io/health"
 
-$body = @{query="test"} | ConvertTo-Json
-Invoke-RestMethod -Method Post -Uri "https://rag-mcp-azure.redsand-f0795bb6.francecentral.azurecontainerapps.io/query" -ContentType "application/json" -Body $body
+# Chat
+$body = @{query="What is hypertension?"} | ConvertTo-Json
+Invoke-RestMethod -Method Post `
+  -Uri "https://rag-mcp-azure.redsand-f0795bb6.francecentral.azurecontainerapps.io/chat" `
+  -ContentType "application/json" -Body $body
 ```
-
-> **PowerShell note:** `Invoke-RestMethod`/`Invoke-WebRequest` sometimes mis-encode accented characters (é, è) typed directly in a query string, showing mojibake like `durÃ©e` in the terminal. This is a display artifact of PowerShell 5.1, not a server-side bug — the API itself handles UTF-8 correctly (verified against production).
 
 ---
 
-## 🔐 Azure Prerequisites (First-time setup)
+## 🔧 Configuration Reference
 
-### 1. Register required providers (one-time)
-```bash
-az provider register --namespace Microsoft.App --wait
-az provider register --namespace Microsoft.ContainerRegistry --wait
-az provider register --namespace Microsoft.Storage --wait
-```
+| Variable | Required | Description |
+|---|---|---|
+| `OPENROUTER_API_KEY` | Yes (production) | LLM API key — Azure secret, never plaintext |
+| `BLOB_CONTAINER_URL` | No | Blob Storage connection string for PDF ingestion |
+| `INDEX_CONTAINER_NAME` | No | Blob container name for pre-built FAISS index |
 
-### 2. Create service principal
-```bash
-az ad sp create-for-rbac --name "rag-mcp-github" --role Contributor --sdk-auth
-# Copy the JSON output → set as AZURE_CREDENTIALS secret in GitHub
-```
-
-### 3. Enable ACR admin account
-```bash
-az acr update --name ragmcpacr26 --admin-enabled true
-az acr credential show --name ragmcpacr26
-# Copy username/password → set as ACR_USERNAME, ACR_PASSWORD secrets in GitHub
-```
-
-### 4. Verify ACA environment
-```bash
-az containerapp env list -o table
-# Should show: cae-rag-mcp-azure in rg-rag-mcp-azure, France Central
-```
-
-> **Note:** an Azure subscription can only have **one** global Container App Environment by default. Reuse the existing one rather than creating a new one — attempting to create a second will fail with `MaxNumberOfGlobalEnvironmentsInSubExceeded`.
+**Local tweaks** (`app/rag_engine.py`):
+- `chunk_size` / `chunk_overlap` — text splitter parameters (default: 500 / 50)
+- `k` / `fetch_k` — MMR search parameters (default: k=3, fetch_k=20)
+- Embedding model — `HuggingFaceEmbeddings(model_name=...)`
 
 ---
 
 ## ⚙️ Troubleshooting
 
-### Docker build fails
-- Check `requirements.txt` for incompatible packages
-- Ensure Python 3.12 compatibility
-- Review Dockerfile for typos
-
-### GitHub Actions workflow fails
-- Check all four secrets are set in repository settings
-- Verify ACR admin is enabled
-- Run `az containerapp env show` locally to confirm the environment exists
-- `az containerapp create` does **not** accept a `--location` parameter — location is inherited from the environment
-
-### Blob Storage authentication errors (`401`, `MissingSubscriptionRegistration`)
-- Ensure `Microsoft.Storage` provider is registered (see Prerequisites above)
-- Blob upload via Azure CLI requires either `--auth-mode key` or an RBAC role like "Storage Blob Data Contributor" assigned to your account with `--auth-mode login`
-
-### MCP endpoint returns `421 Misdirected Request`
-- The production host isn't in `TransportSecuritySettings.allowed_hosts` — see the DNS Rebinding Protection section above
-
-### MCP endpoint returns `500 Internal Server Error: Task group is not initialized`
-- The MCP session manager wasn't started via FastAPI's `lifespan` — a plain `app.mount()` alone is not enough
-
-### /query endpoint returns empty context
-- Check that PDFs exist in Blob Storage (or `app/data/` for local fallback)
-- Check startup logs for `Base vectorielle prête !`
-- Try `/reindex` to force a rebuild
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `/chat` returns config error | `OPENROUTER_API_KEY` not set | Set the Azure Container App secret |
+| Empty context from `/query` | No index loaded | Check startup logs for `Base vectorielle prête !`, call `/reindex` |
+| MCP `421 Misdirected Request` | Host not in allow-list | Add host to `TransportSecuritySettings` in `main.py` |
+| MCP `500 Task group not initialized` | MCP not started via `lifespan` | Ensure `async with mcp.session_manager.run()` is in the lifespan context |
+| Docker build fails | Dependency conflict | Check Python 3.12 compatibility in `requirements.txt` |
+| GitHub Actions fails | Missing secrets | Verify all 5 secrets are set in repository settings |
 
 ---
 
-## 📈 Performance & Constraints
+## 📈 Performance Profile
 
 | Metric | Value |
 |--------|-------|
-| Target RAM | 8 GB |
-| Deployment CPU | 0.5 CPU |
+| Deployment CPU | 0.5 vCPU |
 | Deployment Memory | 1.0 Gi |
-| Embedding Model | all-MiniLM-L6-v2 (33 MB) |
-| Torch | CPU-only wheel |
-| Max PDF size | Limited by available RAM |
-| Vector search K | 3 results (configurable) |
-
----
-
-## 🔒 Security & Future Improvements
-
-### Current Security Architecture
-
-- ✅ **Secrets Management:** GitHub repository secrets for Azure, ACR, and Blob Storage credentials — never committed to source
-- ✅ **Container App Secrets:** Blob Storage connection string stored as a Container App secret (`secretref`), not a plaintext environment variable
-- ✅ **Network Isolation:** Azure Container Apps runs in a managed environment with ingress control
-- ✅ **Service Principal:** Deployment uses an Azure AD service principal (not the subscription owner account)
-- ✅ **API Validation:** FastAPI validates all request schemas with Pydantic
-- ✅ **MCP DNS Rebinding Protection:** explicitly scoped to known hosts rather than disabled
-- ✅ **Key rotation practiced:** the Blob Storage account key was rotated after being inadvertently exposed in application logs during initial debugging — a concrete lesson in why secrets should never be logged, even for troubleshooting
-
-### Known Limitations & Planned Improvements
-
-#### 1. ACR Authentication (Priority: Medium)
-
-**Current approach:** Admin username/password stored in GitHub Secrets.
-
-**Limitation:** Credentials are long-lived and stored as plaintext secrets.
-
-**Recommended improvement:** Migrate to **OIDC Federated Authentication** between GitHub Actions and Azure — short-lived tokens, no stored credentials to rotate, native Azure AD audit trail.
-
-```yaml
-# Future
-- uses: azure/login@v2
-  with:
-    client-id: ${{ secrets.AZURE_CLIENT_ID }}
-    tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-    subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-```
-
-**How to implement:**
-1. Create an Azure Entra ID application
-2. Configure federated credentials for this GitHub repo
-3. Store client ID, tenant ID, subscription ID as secrets
-4. Update `deploy.yml` to use OIDC-based `azure/login@v2`
-5. Remove the `AZURE_CREDENTIALS` and ACR admin secrets
-
-**Resources:** [GitHub OIDC in Azure](https://learn.microsoft.com/en-us/azure/active-directory/workload-identities/workload-identity-federation) · [azure/login OIDC support](https://github.com/azure/login#github-oidc-token-generation)
-
-#### 2. Additional Enhancements
-
-- [ ] Persist ephemeral `/upload` documents to Blob Storage instead of memory-only
-- [ ] API authentication (API key or Bearer token) on `/query` and `/upload`
-- [ ] Rate limiting
-- [ ] Observability via Azure Application Insights (latency, error rate, request volume)
-- [ ] Multi-region deployment for high availability
+| Embedding model | `all-MiniLM-L6-v2` (33 MB, CPU) |
+| Cold start | ~25–30s (index download + model load) |
+| Inference | CPU-only, no GPU |
+| FAISS search | MMR, k=3 from fetch_k=20 |
+| LLM | Claude Haiku 4.5, temp=0.3, max_tokens=1000 |
 
 ---
 
 ## 🛣️ Roadmap
 
-- [x] Real MCP protocol support with end-to-end client verification
-- [x] Azure Blob Storage document pipeline
-- [x] Automated REST + MCP integration tests
-- [ ] Add LLM endpoint for final answer synthesis
-- [ ] Support multiple file formats (DOCX, TXT, etc.)
-- [ ] API authentication
-- [ ] OIDC federated auth for CI/CD
-- [ ] Application Insights monitoring
-- [ ] Support external vector database (Pinecone, Weaviate) for larger corpora
+- [x] MedQuAD medical knowledge base
+- [x] MMR search for diverse, non-redundant context
+- [x] Server-side LLM synthesis (`/chat` endpoint)
+- [x] API key security — backend-only, Azure secret
+- [x] Full-page frontend with dark mode and Lucide icons
+- [x] MCP Streamable HTTP endpoint (verified end-to-end)
+- [x] Pre-built FAISS index loaded from Blob Storage
+- [x] Automated CI/CD with GitHub Actions
+- [ ] OIDC federated auth for CI/CD (replace ACR admin credentials)
+- [ ] Rate limiting on `/chat`
+- [ ] API key authentication for `/chat` and `/upload`
+- [ ] Azure Application Insights (latency, error rate, usage)
+- [ ] Persist `/upload` documents to Blob Storage
+- [ ] Multi-language support
 
 ---
 
 ## 📝 License
 
-This project is provided as-is for educational and portfolio purposes.
+Provided as-is for educational and portfolio purposes.
 
 ---
 
 ## 👤 Author
 
-Oumniya Moutaouakil — AI Engineer, LLM/Agentic AI & RAG Systems.
+**Oumniya Moutaouakil** — AI Engineer, LLM / Agentic AI & RAG Systems.
 
-**Project Status:** ✅ Production-Ready — deployed on Azure Container Apps, REST + MCP endpoints verified end-to-end against production.
-
-
+**Project status:** ✅ Production-ready — backend on Azure Container Apps, frontend on Vercel, REST + MCP endpoints verified end-to-end.

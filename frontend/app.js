@@ -7,13 +7,46 @@ const typingIndicator   = document.getElementById('typing-indicator');
 const userInput         = document.getElementById('user-input');
 const sendBtn           = document.getElementById('send-btn');
 const inputForm         = document.getElementById('input-form');
+const settingsBtn       = document.getElementById('settings-btn');
+const settingsDropdown  = document.getElementById('settings-dropdown');
+const themeToggle       = document.getElementById('theme-toggle');
+const themeLabel        = document.getElementById('theme-label');
+
+// ── Theme init (avant DOMContentLoaded pour éviter le flash) ──────────────
+(function () {
+    const saved = localStorage.getItem('theme') || 'light';
+    if (saved === 'dark') document.body.setAttribute('data-theme', 'dark');
+})();
 
 window.addEventListener('DOMContentLoaded', () => {
+    applyThemeUI();
     setupEventListeners();
     lucide.createIcons();
 });
 
 function setupEventListeners() {
+    // Settings dropdown
+    settingsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = !settingsDropdown.hidden;
+        settingsDropdown.hidden = isOpen;
+        settingsBtn.setAttribute('aria-expanded', String(!isOpen));
+    });
+
+    document.addEventListener('click', () => {
+        settingsDropdown.hidden = true;
+        settingsBtn.setAttribute('aria-expanded', 'false');
+    });
+
+    themeToggle.addEventListener('click', () => {
+        const isDark = document.body.getAttribute('data-theme') === 'dark';
+        const next = isDark ? 'light' : 'dark';
+        document.body.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
+        applyThemeUI();
+        settingsDropdown.hidden = true;
+    });
+
     inputForm.addEventListener('submit', (e) => { e.preventDefault(); sendMessage(); });
     userInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -25,6 +58,14 @@ function setupEventListeners() {
             sendMessage();
         });
     });
+}
+
+function applyThemeUI() {
+    const isDark = document.body.getAttribute('data-theme') === 'dark';
+    themeToggle.innerHTML = isDark
+        ? '<i data-lucide="sun"></i><span id="theme-label">Thème clair</span>'
+        : '<i data-lucide="moon"></i><span id="theme-label">Thème sombre</span>';
+    lucide.createIcons();
 }
 
 async function sendMessage() {

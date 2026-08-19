@@ -96,7 +96,7 @@ def health() -> dict:
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 OPENROUTER_MODEL = "anthropic/claude-haiku-4.5"
-SYSTEM_PROMPT = """Tu es MedAssist, un assistant médical professionnel et empathique. Tu as accès à une base de connaissances médicale validée.
+SYSTEM_PROMPT = """Tu es O.M. Health AI, un assistant médical professionnel et empathique. Tu as accès à une base de connaissances médicale validée.
 
 RÈGLES ABSOLUES :
 1. Ne dis JAMAIS "basé sur le contexte fourni", "d'après le texte", ou "selon les documents". Parle directement comme un médecin qui possède lui-même la connaissance.

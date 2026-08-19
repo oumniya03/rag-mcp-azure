@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MedAssist — Assistant Médical IA</title>
+    <title>O.M. Health AI — Assistant Médical</title>
+    <link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23000000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>'>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
@@ -12,16 +13,31 @@
     <!-- NAVBAR -->
     <nav class="navbar">
         <div class="logo">
-            <strong>MEDASSIST</strong>
+            <strong>O.M. Health AI</strong>
             <span class="badge-triage"><span class="dot-green"></span> 24/7 Live Triage</span>
         </div>
             <ul class="nav-links">
                 <li><a href="#features">Fonctionnalités</a></li>
                 <li><a href="#securite">Sécurité</a></li>
                 <li><a href="#faq">FAQ</a></li>
-                <li><a href="mailto:contact@medassist.fr">Contact</a></li>
+                <li><a href="mailto:contact@omhealthai.fr">Contact</a></li>
             </ul>
         <div class="nav-actions">
+            <div class="settings-wrapper">
+                <button class="btn-icon" id="settings-btn" aria-label="Paramètres" aria-expanded="false">
+                    <i data-lucide="settings"></i>
+                </button>
+                <div class="settings-dropdown" id="settings-dropdown" hidden>
+                    <ul class="dropdown-list">
+                        <li>
+                            <button class="dropdown-item" id="theme-toggle">
+                                <i data-lucide="moon"></i>
+                                <span id="theme-label">Thème sombre</span>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+            </div>
         </div>
     </nav>
 
@@ -34,7 +50,7 @@
                 <span class="dot-black"></span> DISPONIBLE 24/7 • VALIDATION MÉDICALE
             </div>
             <h1>Vos questions de santé, des réponses claires.</h1>
-            <p>MedAssist vous guide à toute heure avec des informations médicales fiables et accessibles. Posez vos questions en toute confiance, sans rendez-vous, sans attente.</p>
+            <p>O.M. Health AI vous guide à toute heure avec des informations médicales fiables et accessibles. Posez vos questions en toute confiance, sans rendez-vous, sans attente.</p>
             <div class="hero-buttons">
                 <button class="btn-black btn-large" onclick="document.getElementById('user-input').focus()">Démarrer une consultation ➔</button>
                 <button class="btn-outline btn-large" onclick="document.getElementById('features').scrollIntoView({behavior:'smooth'})"><i data-lucide="activity" style="width:16px;height:16px;"></i> Explorer les fonctionnalités</button>
@@ -66,7 +82,7 @@
                     <div class="chat-title-group">
                         <div class="bot-avatar-header"><i data-lucide="activity"></i></div>
                         <div>
-                            <div class="chat-name">MedAssist <span class="tag-doctor">AI Doctor</span></div>
+                            <div class="chat-name">O.M. Health AI <span class="tag-doctor">AI Doctor</span></div>
                             <div class="chat-subtitle">Assistant médical disponible 24h/24</div>
                         </div>
                     </div>
@@ -79,7 +95,7 @@
                     <div class="message-row bot-row">
                         <div class="avatar-small"><i data-lucide="activity"></i></div>
                         <div class="bubble bot-bubble">
-                            Bonjour, je suis MedAssist, votre assistant médical. Comment puis-je vous aider aujourd'hui ?
+                            Bonjour, je suis O.M. Health AI, votre assistant médical. Comment puis-je vous aider aujourd'hui ?
                             <div class="time-stamp">En ligne</div>
                         </div>
                     </div>
@@ -157,10 +173,9 @@
             </div>
             <div class="feature-card">
                 <div class="feature-icon"><i data-lucide="lock"></i></div>
-                <h3>Clé API sécurisée côté serveur</h3>
-                <p>Votre clé OpenRouter n'est jamais exposée au navigateur. Elle est stockée comme secret chiffré sur Azure Container Apps.</p>
+                <h3>Traitement Chiffré & Privé</h3>
+                <p>Toutes vos questions sont transmises via des connexions hautement sécurisées (HTTPS). De plus, aucune de vos données de santé n'est utilisée pour entraîner des modèles d'intelligence artificielle publics.</p>
             </div>
-        </div>
     </section>
     <!-- SECTION FAQ -->
     <section id="faq" class="features-section" style="margin-top: 60px;">
@@ -172,7 +187,7 @@
             </div>
             <div class="feature-card" style="padding: 20px;">
                 <h3 style="font-size: 1.1rem; margin-bottom: 8px;">Est-ce un vrai médecin ?</h3>
-                <p style="font-size: 0.9rem; color: var(--text-light);"><strong>Non.</strong> MedAssist est une démonstration technologique d'architecture RAG (Retrieval-Augmented Generation). Il ne pose pas de diagnostic et ne remplace en aucun cas l'avis d'un professionnel de santé physique.</p>
+                <p style="font-size: 0.9rem; color: var(--text-light);"><strong>Non.</strong> O.M. Health AI est une démonstration technologique d'architecture RAG (Retrieval-Augmented Generation). Il ne pose pas de diagnostic et ne remplace en aucun cas l'avis d'un professionnel de santé physique.</p>
             </div>
         </div>
     </section>
