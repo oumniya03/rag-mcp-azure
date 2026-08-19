@@ -1,6 +1,6 @@
 // Configuration
 // Use localhost for local testing, production URL for deployed version
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "https://rag-mcp-azure.redsand-f0795bb6.francecentral.azurecontainerapps.io";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = "anthropic/claude-haiku-4.5";
 
