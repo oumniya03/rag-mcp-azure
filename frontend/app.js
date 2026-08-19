@@ -47,6 +47,14 @@ function setupEventListeners() {
         settingsDropdown.hidden = true;
     });
 
+    // Fermer le dropdown au clic sur un lien de navigation
+    document.querySelectorAll('.dropdown-link').forEach(link => {
+        link.addEventListener('click', () => {
+            settingsDropdown.hidden = true;
+            settingsBtn.setAttribute('aria-expanded', 'false');
+        });
+    });
+
     inputForm.addEventListener('submit', (e) => { e.preventDefault(); sendMessage(); });
     userInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }

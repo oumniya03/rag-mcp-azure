@@ -186,6 +186,19 @@ body {
 .dropdown-item:hover { background: var(--bot-bg); }
 .dropdown-item svg { width: 16px; height: 16px; flex-shrink: 0; }
 
+.dropdown-separator {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 4px 8px;
+}
+
+.dropdown-link {
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
 .security-text {
     font-size: 13px;
     color: #059669;
