@@ -178,7 +178,10 @@ class SimpleRAGEngine:
         if not self.vector_store:
             return "Erreur : La base de connaissances est vide. Ajoutez des PDF via /upload ou configurez BLOB_CONTAINER_URL."
 
-        results = self.vector_store.similarity_search(query, k=k)
+        # Use MMR (Maximal Marginal Relevance) to diversify results and avoid
+        # duplicate "Question:" chunks dominating the top-k.
+        # fetch_k=20: consider top 20 candidates, then pick k=3 diverse ones.
+        results = self.vector_store.max_marginal_relevance_search(query, k=k, fetch_k=20)
         context = "\n\n".join(
             [f"Extrait {i + 1}:\n{doc.page_content}" for i, doc in enumerate(results)]
         )
