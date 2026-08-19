@@ -19,7 +19,12 @@ def main():
         sys.exit(1)
 
     print(f"Connexion à Azure Blob Storage...")
-    blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+    # Increase timeout to 10 minutes for large files
+    blob_service_client = BlobServiceClient.from_connection_string(
+        connection_string,
+        connection_timeout=600,  # 10 minutes
+        read_timeout=600
+    )
     container_client = blob_service_client.get_container_client(CONTAINER_NAME)
 
     # Create container if not exists
@@ -35,9 +40,11 @@ def main():
             print(f"ERREUR: Fichier introuvable: {local_path}")
             sys.exit(1)
 
-        print(f"Upload de {filename} ({local_path.stat().st_size / 1024 / 1024:.1f} MB)...")
+        file_size_mb = local_path.stat().st_size / 1024 / 1024
+        print(f"Upload de {filename} ({file_size_mb:.1f} MB)...")
         blob_client = container_client.get_blob_client(filename)
         with open(local_path, "rb") as f:
+            # Simple upload with overwrite - SDK handles chunking automatically
             blob_client.upload_blob(f, overwrite=True)
         print(f"  ✓ {filename} uploadé avec succès.")
 
