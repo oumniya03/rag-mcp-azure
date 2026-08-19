@@ -1,3 +1,5 @@
+<img width="907" height="412" alt="image" src="https://github.com/user-attachments/assets/249ac5a9-d5cf-48ac-a83c-40645cce083d" />
+
 # O.M. Health AI — Medical RAG Assistant
 
 A production-ready **AI-powered medical assistant** built on a full-stack RAG (Retrieval-Augmented Generation) architecture. The backend runs on **Azure Container Apps**, the frontend is deployed on **Vercel**. Designed for reliability, security, and a polished end-user experience.
