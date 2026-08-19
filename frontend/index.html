@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistant Médical RAG</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <h1 class="app-title">Assistant Médical RAG</h1>
+                <span class="app-subtitle">MedQuAD • Azure + OpenRouter</span>
+            </div>
+            <div class="header-right">
+                <button class="icon-btn settings-btn" id="settings-btn" aria-label="Réglages" aria-expanded="false">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                    <span class="status-dot" id="status-dot" aria-hidden="true"></span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Settings Modal Overlay -->
+        <div class="modal-overlay" id="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title" hidden>
+            <div class="modal" id="settings-modal">
+                <div class="modal-header">
+                    <h2 id="modal-title">Clé API OpenRouter</h2>
+                    <button class="icon-btn modal-close" id="modal-close" aria-label="Fermer">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p class="modal-hint">Entrez votre clé API OpenRouter pour activer la génération de réponses. La clé est stockée uniquement dans la session du navigateur (sessionStorage).</p>
+                    <div class="form-group">
+                        <label for="api-key" class="visually-hidden">Clé API OpenRouter</label>
+                        <input type="password" id="api-key" placeholder="sk-or-v1-..." autocomplete="off" aria-describedby="api-key-hint">
+                        <span id="api-key-hint" class="form-hint">Format: sk-or-v1-...</span>
+                    </div>
+                    <div class="modal-status" id="modal-status" aria-live="polite"></div>
+                    <div class="modal-actions">
+                        <button class="btn btn-secondary" id="modal-cancel">Annuler</button>
+                        <button class="btn btn-primary" id="save-api-key">Enregistrer</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Area -->
+        <main class="chat-area" id="chat-area">
+            <div class="messages" id="messages" role="log" aria-live="polite" aria-label="Conversation">
+                <!-- Welcome state -->
+                <div class="welcome-state" id="welcome-state">
+                    <div class="welcome-content">
+                        <svg class="welcome-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                        <h2 class="welcome-title">Bienvenue</h2>
+                        <p class="welcome-text">Posez une question sur la base de connaissances médicale MedQuAD pour commencer.</p>
+                    </div>
+                    <p class="disclaimer-inline">Ce projet est une démonstration technique et ne remplace pas un avis médical professionnel.</p>
+                </div>
+            </div>
+
+            <!-- Typing indicator (hidden by default) -->
+            <div class="typing-indicator" id="typing-indicator" aria-hidden="true" hidden>
+                <div class="typing-bubble">
+                    <span class="typing-dot"></span>
+                    <span class="typing-dot"></span>
+                    <span class="typing-dot"></span>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <form class="input-form" id="input-form">
+                <div class="input-wrapper">
+                    <input type="text" id="user-input" placeholder="Posez votre question médicale..." autocomplete="off" aria-label="Votre question" disabled>
+                    <button type="submit" class="icon-btn send-btn" id="send-btn" aria-label="Envoyer" disabled>
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <line x1="22" y1="2" x2="11" y2="13"/>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                        </svg>
+                    </button>
+                </div>
+            </form>
+        </main>
+
+        <!-- Persistent disclaimer (mobile fallback) -->
+        <footer class="footer" id="footer">
+            <p class="disclaimer">Ce projet est une démonstration technique et ne remplace pas un avis médical professionnel.</p>
+        </footer>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

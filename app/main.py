@@ -3,6 +3,7 @@ import sys
 from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp.server.mcpserver import MCPServer
@@ -65,6 +66,16 @@ app = FastAPI(
     description="FastAPI exposing a lightweight RAG search engine and MCP-compatible tool.",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+# CORS for browser-based frontend (public demo API with MedQuAD public data)
+# Include "null" explicitly for file:// protocol (Origin: null)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*", "null"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=False,
 )
 
 # Mount the MCP server. mcp_app already exposes its routes under /mcp internally,
