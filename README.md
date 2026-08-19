@@ -4,8 +4,10 @@
 
 A production-ready **AI-powered medical assistant** built on a full-stack RAG (Retrieval-Augmented Generation) architecture. The backend runs on **Azure Container Apps**, the frontend is deployed on **Vercel**. Designed for reliability, security, and a polished end-user experience.
 
-**Live demo:** `https://rag-mcp-azure.redsand-f0795bb6.francecentral.azurecontainerapps.io`
+🌐 **Live Demo (Frontend):** [https://om-health-ai.vercel.app](https://om-health-ai.vercel.app)
+⚙️ **Backend API (Azure):** `https://rag-mcp-azure.redsand-f0795bb6.francecentral.azurecontainerapps.io`
 
+---
 ---
 
 ## 🎯 Project Overview
